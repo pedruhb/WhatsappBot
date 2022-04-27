@@ -147,6 +147,13 @@ async function start(client) {
                         return;
                     }
 
+                    if (mensagem.length > 200) {
+                        await client.reply(message.from, "A mensagem deve ter no máximo 200 caracteres.", message.id).catch((erro) => {
+                            console.error('Error when sending: ', erro);
+                        });
+                        return;
+                    }
+
                     var audiobase64 = await googleTTS.getAudioBase64(mensagem, {
                         lang: 'pt',
                         slow: false,

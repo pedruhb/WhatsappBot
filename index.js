@@ -12,6 +12,15 @@ venom.create({ session: 'session' }).then((client) => start(client)).catch((erro
     console.log(erro);
 });
 
+const helpMessage = 'Olá, sou um robô em desenvolvimento.\n\n' +
+    '```Veja a minha lista de funções:``` \n\n' +
+    '*Baixar vídeo:* ```Mande o link de um vídeo do TikTok ou Youtube.```\n\n' +
+    '*Criar sticker:* ```mande uma foto com a descrição "!sticker".```\n\n' +
+    '*Mandar áudio:* ```Use o comando "!say teste".```\n\n' +
+    '*Ajuda:* ```Use o comando !help para mais informações.```\n\n' +
+    '_Em breve vou receber mais funções._\n\n' +
+    '*_Tem um feedback? entre em contato com o desenvolvedor: https://wa.me/5521998149241_*';
+
 async function start(client) {
 
     if (!fs.existsSync("temp")) {
@@ -132,9 +141,10 @@ async function start(client) {
                     var mensagem = message.body.replace("!say", "").replace("!tts", "");
 
                     if (mensagem.length == 0) {
-                        await client.reply(message.from, "Digite uma mensagem", message.id).catch((erro) => {
+                        await client.reply(message.from, "Digite uma mensagem...", message.id).catch((erro) => {
                             console.error('Error when sending: ', erro);
                         });
+                        return;
                     }
 
                     var audiobase64 = await googleTTS.getAudioBase64(mensagem, {
@@ -148,6 +158,13 @@ async function start(client) {
                         console.error('Error when sending: ', erro);
                     });
 
+                }
+
+                /// help command
+                else if (message.body.startsWith("!help") || message.body.startsWith("!ajuda")) {
+                    await client.sendText(message.from, helpMessage).catch((erro) => {
+                        console.error('Error when sending: ', erro);
+                    });
                 }
 
             } else if (message.type == "image") {
@@ -175,4 +192,11 @@ async function start(client) {
         }
 
     });
+
+    client.onAddedToGroup(async (chatEvent) => {
+        await client.sendText(chatEvent.id, helpMessage).catch((erro) => {
+            console.error('Error when sending: ', erro);
+        });
+    });
+
 }

@@ -4,15 +4,17 @@
   "description": "",
   "type": "module",
   "scripts": {
-    "dev": "nodemon src/server.js"
+    "dev": "nodemon src/bot.js"
   },
   "keywords": [],
   "author": "PHB",
   "license": "ISC",
   "dependencies": {
     "base64-arraybuffer": "^1.0.2",
+    "enmap": "^5.9.0",
     "fetch-base64": "^2.1.2",
     "filereader": "^0.10.3",
+    "gifify": "^2.4.3",
     "google-tts-api": "^2.0.2",
     "node-fetch": "^3.2.3",
     "nodemon": "^2.0.15",

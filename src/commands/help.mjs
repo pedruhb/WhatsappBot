@@ -10,7 +10,7 @@ export default {
 
         let commands = client.commands
         commands.forEach(command => {
-            helpMessage += '*' + command.info.name + ':* ```' + config.prefix + '' + command.info.usage + ' -  ' + command.info.description + '```\n\n'
+            if (!command.info.hide) helpMessage += '*' + command.info.name + ':* ```' + config.prefix + '' + command.info.usage + ' -  ' + command.info.description + '```\n\n'
         })
 
         helpMessage += '*_Tem um feedback? entre em contato com o desenvolvedor: https://wa.me/5521998149241_*';

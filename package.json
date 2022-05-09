@@ -15,6 +15,7 @@
     "fetch-base64": "^2.1.2",
     "filereader": "^0.10.3",
     "fluent-ffmpeg": "^2.1.2",
+    "forever": "^4.0.3",
     "gifify": "^2.4.3",
     "google-tts-api": "^2.0.2",
     "node-fetch": "^3.2.3",

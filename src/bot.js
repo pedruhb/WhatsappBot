@@ -7,15 +7,15 @@ import { fileURLToPath } from 'url';
 import ytdl from 'ytdl-core';
 import Enmap from 'enmap';
 import config from './config.js';
-import puppeteer from 'puppeteer';
 import ffmpeg from 'fluent-ffmpeg';
+import Scraper from './fb-scraper.js';
 
-const browser = await puppeteer.launch();
 export const __dirname = join(dirname(fileURLToPath(import.meta.url)), "../");
 const cmdFiles = readdirSync(join(__dirname, "src", "commands"));
 ffmpeg.setFfprobePath(join(__dirname, "src", "ffmpeg", "ffprobe.exe"));
+const fbScraper = new Scraper();
 
-venom.create({ session: 'session' }).then((client) => start(client)).catch((erro) => {
+venom.create({ session: 'session', puppeteerOptions: { headless: false }}).then((client) => start(client)).catch((erro) => {
     console.log(erro);
 });
 
@@ -170,69 +170,19 @@ async function start(client) {
                     if (err) return console.log(err);
                 });
 
-            } else if (message.body.startsWith("https://www.facebook.com") || message.body.startsWith("https://fb.watch")) {
+            } else if (message.body.startsWith("https://www.facebook.com") || message.body.startsWith("https://fb.watch") || message.body.startsWith("https://fb.com")) {
 
-                const page = await browser.newPage();
-                await page.goto(message.body);
-                let bodyHTML = await page.evaluate(() => document.documentElement.outerHTML);
-                let videoData = /{"define":\[\["DynamicUFIReactionTypes",(.*)}/g.exec(bodyHTML);
-
-                if (!videoData || videoData == null || videoData.length == 0 || !videoData[0] || !JSON.parse(videoData[0].replace(");});}", ""))) {
-                    await client.reply(message.from, "O vídeo é inválido! verifique se é público e se o link é do Facebook Watch.", message.id).catch((erro) => {
+                var facebook = await fbScraper.facebook(message.body);
+                if (!facebook.success) {
+                    await client.reply(message.from, "Erro ao obter vídeo.", message.id).catch((erro) => {
                         console.error('Error when sending: ', erro);
                     });
                     return;
                 }
 
-                var json = JSON.parse(videoData[0].replace(");});}", ""));
+                var video_file_name = `${Math.floor(Math.random() * 101)}_${message.from}.mp4`;
 
-                if (!json.require.find(x => x[0].startsWith("RelayPrefetchedStreamCache"))) {
-                    await client.reply(message.from, "O vídeo é inválido! verifique se é público.", message.id).catch((erro) => {
-                        console.error('Error when sending: ', erro);
-                    });
-                    return;
-                }
-
-                var RelayPrefetchedStreamCache = json.require.find(x => x[0].startsWith("RelayPrefetchedStreamCache"))
-
-                if (!RelayPrefetchedStreamCache[3] || !RelayPrefetchedStreamCache[3][1] || !RelayPrefetchedStreamCache[3][1].__bbox || !RelayPrefetchedStreamCache[3][1].__bbox.result || !RelayPrefetchedStreamCache[3][1].__bbox.result.extensions || !RelayPrefetchedStreamCache[3][1].__bbox.result.extensions.all_video_dash_prefetch_representations || !RelayPrefetchedStreamCache[3][1].__bbox.result.extensions.all_video_dash_prefetch_representations[0]) {
-                    await client.reply(message.from, "O vídeo é inválido! verifique se é público.", message.id).catch((erro) => {
-                        console.error('Error when sending: ', erro);
-                    });
-                    return;
-                }
-
-                var video = RelayPrefetchedStreamCache[3][1].__bbox.result.extensions.all_video_dash_prefetch_representations[0];
-
-                var videoUrl;
-                if (video.representations.find(x => x.width == 720 && x.bandwidth <= 534326)) {
-                    videoUrl = video.representations.find(x => x.width == 720 && x.bandwidth <= 534326).base_url;
-                }
-                else if (video.representations.find(x => x.width == 360 && x.bandwidth <= 534326)) {
-                    videoUrl = video.representations.find(x => x.width == 360 && x.bandwidth <= 534326).base_url;
-                }
-                else if (video.representations[0]) {
-                    videoUrl = video.representations[0].base_url;
-                    if (video.representations[0].bandwidth >= 669984) {
-                        await client.reply(message.from, "O vídeo ultrapassa o limite de 16MB estabelecido pelo WhatsApp.", message.id).catch((erro) => {
-                            console.error('Error when sending: ', erro);
-                        });
-                        return;
-                    }
-                } else {
-                    await client.reply(message.from, "O vídeo é inválido! verifique se é público.", message.id).catch((erro) => {
-                        console.error('Error when sending: ', erro);
-                    });
-                    return;
-                }
-
-                var audioUrl = video.representations.find(x => x.mime_type == 'audio/mp4').base_url;
-                var videoId = video.video_id;
-                var video_file_name = `video_${videoId}.mp4`;
-                var audio_file_name = `audio_${videoId}.mp4`;
-                var merged_file_name = `merged_${videoId}.mp4`;
-
-                await fetch(videoUrl).then(async (res) => {
+                await fetch(facebook.url).then(async (res) => {
                     await new Promise((resolve, reject) => {
                         var dest = fs.createWriteStream(join(__dirname, "temp", video_file_name))
                         dest.on('error', function (err) {
@@ -256,58 +206,8 @@ async function start(client) {
                     return;
                 }
 
-                await fetch(audioUrl).then(async (res) => {
-                    await new Promise((resolve, reject) => {
-                        var dest = fs.createWriteStream(join(__dirname, "temp", audio_file_name))
-                        dest.on('error', function (err) {
-                            console.log(err);
-                        });
-                        res.body.pipe(dest);
-                        res.body.on("error", (err) => {
-                            console.log(err);
-                            reject(err);
-                        });
-                        dest.on("finish", function () {
-                            resolve();
-                        });
-                    });
-                });
-
-                if (!fs.existsSync(join(__dirname, "temp", audio_file_name))) {
-                    await client.reply(message.from, "Houve um erro ao baixar o áudio do vídeo, tente novamente.", message.id).catch((erro) => {
-                        console.error('Error when sending: ', erro);
-                    });
-                    return;
-                }
-
-                await new Promise((resolve) => {
-                    new ffmpeg()
-                        .addInput(join(__dirname, "temp", video_file_name))
-                        .addInput(join(__dirname, "temp", audio_file_name))
-                        .audioBitrate(80)
-                        .audioFrequency(44100)
-                        .addOption('-c:v', 'copy')
-                        .audioCodec('aac')
-                        .format('mp4')
-                        .saveToFile(join(__dirname, "temp", merged_file_name), join(__dirname, "temp"))
-                        .on('end', function () {
-                            resolve();
-                        })
-                        .on('error', function (err) {
-                            console.log('An error occurred: ' + err.message);
-                        })
-                });
-
-
-                if (!fs.existsSync(join(__dirname, "temp", merged_file_name))) {
-                    await client.reply(message.from, "Houve um erro ao baixar o vídeo, tente novamente.", message.id).catch((erro) => {
-                        console.error('Error when sending: ', erro);
-                    });
-                    return;
-                }
-
                 var fileinfo = await new Promise((resolve) => {
-                    fs.stat(join(__dirname, "temp", merged_file_name), (err, stats) => {
+                    fs.stat(join(__dirname, "temp", video_file_name), (err, stats) => {
                         if (!err)
                             resolve(stats)
                     });
@@ -318,7 +218,7 @@ async function start(client) {
                         console.error('Error when sending: ', erro);
                     });
                 } else {
-                    const file_buffer = fs.readFileSync(join(__dirname, "temp", merged_file_name));
+                    const file_buffer = fs.readFileSync(join(__dirname, "temp", video_file_name));
                     const contents_in_base64 = file_buffer.toString('base64');
                     await client.sendFileFromBase64(message.from, `data:video/mp4;base64,${contents_in_base64}`, 'video.mp4', '').catch((erro) => {
                         console.error('Error when sending: ', erro);
@@ -326,14 +226,6 @@ async function start(client) {
                 }
 
                 fs.unlink(join(__dirname, "temp", video_file_name), function (err) {
-                    if (err) return console.log(err);
-                });
-
-                fs.unlink(join(__dirname, "temp", audio_file_name), function (err) {
-                    if (err) return console.log(err);
-                });
-
-                fs.unlink(join(__dirname, "temp", merged_file_name), function (err) {
                     if (err) return console.log(err);
                 });
 

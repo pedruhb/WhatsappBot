@@ -48,8 +48,8 @@ export default {
         var videoId = videoDetails.videoId;
         var videoSeconds = videoDetails.lengthSeconds;
 
-        if (videoSeconds >= (60 * 5)) {
-            await client.reply(message.from, "O vídeo ultrapassa o limite de 5 minutos.", message.id).catch((erro) => {
+        if (videoSeconds >= (60 * 10)) {
+            await client.reply(message.from, "O vídeo ultrapassa o limite de 10 minutos.", message.id).catch((erro) => {
                 console.error('Error when sending: ', erro);
             });
             return;

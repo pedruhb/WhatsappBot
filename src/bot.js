@@ -7,15 +7,17 @@ import { fileURLToPath } from 'url';
 import ytdl from 'ytdl-core';
 import Enmap from 'enmap';
 import config from './config.js';
-import ffmpeg from 'fluent-ffmpeg';
 import Scraper from './fb-scraper.js';
 
 export const __dirname = join(dirname(fileURLToPath(import.meta.url)), "../");
 const cmdFiles = readdirSync(join(__dirname, "src", "commands"));
-ffmpeg.setFfprobePath(join(__dirname, "src", "ffmpeg", "ffprobe.exe"));
 const fbScraper = new Scraper();
 
-venom.create({ session: 'session', puppeteerOptions: { headless: false }}).then((client) => start(client)).catch((erro) => {
+venom.create({ session: 'session', debug: true, puppeteerOptions: { headless: false } }).then((client) => start(client)).catch((erro) => {
+    console.log(erro);
+});
+
+venom.create({ session: 'session2', debug: true, puppeteerOptions: { headless: false } }).then((client) => start(client)).catch((erro) => {
     console.log(erro);
 });
 
@@ -48,6 +50,7 @@ async function start(client) {
         var msg;
 
         if (message.type == "chat" && message.body) {
+
             msg = message.body
 
             if (message.body.startsWith("https://www.tiktok.com") || message.body.startsWith("https://vm.tiktok.com")) {
@@ -77,7 +80,14 @@ async function start(client) {
                             resolve();
                         });
                     });
-                });
+                }).catch(async (error) => {
+                    console.log(error);
+                    console.log(videoMeta);
+                    await client.reply(message.from, "Houve um erro ao baixar o vídeo, tente novamente.", message.id).catch((erro) => {
+                        console.error('Error when sending: ', erro);
+                    });
+                    return;
+                })
 
                 if (!fs.existsSync(join(__dirname, "temp", video_file_name))) {
                     await client.reply(message.from, "Houve um erro ao baixar o vídeo, tente novamente.", message.id).catch((erro) => {
@@ -229,7 +239,10 @@ async function start(client) {
                     if (err) return console.log(err);
                 });
 
+            } else if (message.body.startsWith("https://open.spotify.com/track/")) {
+
             }
+
         } else if (message.text) {
             msg = message.text;
         }

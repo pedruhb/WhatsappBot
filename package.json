@@ -28,6 +28,7 @@
     "venom-bot": "^4.0.9",
     "webp-converter": "^2.3.3",
     "ytdl-core": "^4.11.0",
+    "ytpl": "^2.3.0",
     "ytsr": "^3.8.0"
   }
 }

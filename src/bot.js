@@ -17,9 +17,9 @@ venom.create({ session: 'session', debug: true, puppeteerOptions: { headless: fa
     console.log(erro);
 });
 
-venom.create({ session: 'session2', debug: true, puppeteerOptions: { headless: false } }).then((client) => start(client)).catch((erro) => {
+/*venom.create({ session: 'session2', debug: true, puppeteerOptions: { headless: false } }).then((client) => start(client)).catch((erro) => {
     console.log(erro);
-});
+});*/
 
 async function start(client) {
 
@@ -238,8 +238,6 @@ async function start(client) {
                 fs.unlink(join(__dirname, "temp", video_file_name), function (err) {
                     if (err) return console.log(err);
                 });
-
-            } else if (message.body.startsWith("https://open.spotify.com/track/")) {
 
             }
 

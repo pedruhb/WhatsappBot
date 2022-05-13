@@ -1,4 +1,6 @@
 import * as googleTTS from 'google-tts-api';
+import whatsappApi from 'whatsapp-web.js';
+const { MessageMedia } = whatsappApi;
 
 export default {
 
@@ -6,15 +8,20 @@ export default {
 
         var mensagem = args.join(' ');
 
+        const quotedMsg = await message.getQuotedMessage();
+        if (quotedMsg) {
+            mensagem = quotedMsg.body;
+        }
+
         if (mensagem.length == 0) {
-            await client.reply(message.from, "Digite uma mensagem...", message.id).catch((erro) => {
+            await message.reply("Digite uma mensagem...").catch((erro) => {
                 console.error('Error when sending: ', erro);
             });
             return;
         }
 
         if (mensagem.length > 200) {
-            await client.reply(message.from, "A mensagem deve ter no máximo 200 caracteres.", message.id).catch((erro) => {
+            await message.reply("A mensagem deve ter no máximo 200 caracteres.").catch((erro) => {
                 console.error('Error when sending: ', erro);
             });
             return;
@@ -27,7 +34,9 @@ export default {
             timeout: 10000,
         }).then((result) => { return result }).catch(console.error);
 
-        await client.sendVoiceBase64(message.from, `data:audio/mpeg;base64,${audiobase64}`).catch((erro) => {
+        const media = new MessageMedia('audio/mpeg', audiobase64);
+
+        await message.reply(media).catch((erro) => {
             console.error('Error when sending: ', erro);
         });
 
@@ -35,7 +44,7 @@ export default {
 
     info: {
         name: 'Say',
-        description: 'Manda um áudio com o texto enviado.',
+        description: 'Transcreve uma mensagem ou texto.',
         usage: 'say'
     }
 

@@ -1,4 +1,5 @@
-import venom from 'venom-bot';
+import whatsappApi from 'whatsapp-web.js';
+const { Client, LocalAuth, MessageMedia } = whatsappApi;
 import TikTokScraper from 'tiktok-scraper';
 import fetch from 'node-fetch';
 import fs, { readdirSync } from 'fs';
@@ -8,261 +9,290 @@ import ytdl from 'ytdl-core';
 import Enmap from 'enmap';
 import config from './config.js';
 import Scraper from './fb-scraper.js';
+import qrcode from 'qrcode-terminal';
+import { yo } from 'yoo-hoo';
+import { logger } from './logger.js';
 
 export const __dirname = join(dirname(fileURLToPath(import.meta.url)), "../");
 const cmdFiles = readdirSync(join(__dirname, "src", "commands"));
 const fbScraper = new Scraper();
 
-venom.create({ session: 'session', debug: true, puppeteerOptions: { headless: false } }).then((client) => start(client)).catch((erro) => {
-    console.log(erro);
+console.log('\n\n');
+yo("Robozin", { color: 'rainbow' });
+console.log('\n\n');
+logger.info('Iniciando...');
+
+const client = new Client({
+    puppeteer: config.puppeteer,
+    authStrategy: new LocalAuth({ clientId: "client1" })
 });
 
-/*venom.create({ session: 'session2', debug: true, puppeteerOptions: { headless: false } }).then((client) => start(client)).catch((erro) => {
-    console.log(erro);
-});*/
+client.commands = new Enmap();
 
-async function start(client) {
-
-    client.commands = new Enmap();
-
-    cmdFiles.forEach(async (f) => {
-        try {
-            const props = await import(`./commands/${f}`).catch(err => { console.log(err); });
-            if (f.split('.').slice(-1)[0] !== 'mjs') return;
-            console.log('\u001b[33m [INFO]', `\u001b[32mCarregando o comando \u001b[0m\u001b[31m${props.default.info.name}\u001b[0m`);
-            if (props.default.init) props.default.init(client)
-            client.commands.set(props.default.info.usage, props.default)
-            if (props.default.info.aliases) {
-                props.default.alias = true
-                props.default.info.aliases.forEach(alias => client.commands.set(alias, props.default))
-            }
-        } catch (e) {
-            console.log('\u001b[31m [ERRO]', `\u001b[32mImpossível carregar o comando \u001b[0m\u001b[31m${f}: ${e}\u001b[0m`)
+cmdFiles.forEach(async (f) => {
+    try {
+        const props = await import(`./commands/${f}`).catch(err => { console.log(err); });
+        if (f.split('.').slice(-1)[0] !== 'mjs') return;
+        logger.info(`Carregando o comando \u001b[0m\u001b[31m${props.default.info.name}\u001b[0m`);
+        if (props.default.init) props.default.init(client)
+        client.commands.set(props.default.info.usage, props.default)
+        if (props.default.info.aliases) {
+            props.default.alias = true
+            props.default.info.aliases.forEach(alias => client.commands.set(alias, props.default))
         }
-    })
-
-    if (!fs.existsSync("temp")) {
-        await fs.mkdirSync("temp");
+    } catch (e) {
+        logger.info(`Impossível carregar o comando \u001b[0m\u001b[31m${f}: ${e}\u001b[0m`)
     }
+})
 
-    client.onMessage(async (message) => {
+if (!fs.existsSync("temp")) {
+    await fs.mkdirSync("temp");
+}
 
-        var msg;
+client.on('qr', (qr) => {
+    logger.info("QR Code Recebido");
+    qrcode.generate(qr, { small: true });
+});
 
-        if (message.type == "chat" && message.body) {
+client.on('ready', () => {
+    logger.info('Cliente conectada!');
+});
 
-            msg = message.body
+client.on('group_join', (notification) => {
+    notification.reply('Olá, obrigado por me adicionar ao grupo, para ver as funções disponíveis use o comando !help');
+});
 
-            if (message.body.startsWith("https://www.tiktok.com") || message.body.startsWith("https://vm.tiktok.com")) {
+client.on('change_state', state => {
+    logger.info('CHANGE STATE', state);
+});
 
-                var videoUrl = message.body;
+client.on('disconnected', (reason) => {
+    logger.error('Cliente desconectada.', reason);
+});
 
-                if (message.body.startsWith("https://vm.tiktok.com")) {
-                    videoUrl = await fetch(message.body, { method: 'POST', redirect: 'follow' }).then(r => { return r.url; }).catch(function (err) { console.info(err + " url: " + url); });
-                }
+client.on('auth_failure', (reason) => {
+    logger.error('Erro ao estabelecer conexão.', reason);
+});
 
-                const videoMeta = await TikTokScraper.getVideoMeta(videoUrl, { noWaterMark: true });
+client.on('authenticated', () => {
+    logger.info('A conexão foi estabelecida!');
+});
 
-                var video_file_name = `${Math.floor(Math.random() * 101)}_${videoMeta.collector[0].id}.mp4`;
+client.on('message', async (message) => {
 
-                await fetch(videoMeta.collector[0].videoUrl).then(async (res) => {
-                    await new Promise((resolve, reject) => {
-                        var dest = fs.createWriteStream(join(__dirname, "temp", video_file_name))
-                        dest.on('error', function (err) {
-                            console.log(err);
-                        });
-                        res.body.pipe(dest);
-                        res.body.on("error", (err) => {
-                            console.log(err);
-                            reject(err);
-                        });
-                        dest.on("finish", function () {
-                            resolve();
-                        });
-                    });
-                }).catch(async (error) => {
-                    console.log(error);
-                    console.log(videoMeta);
-                    await client.reply(message.from, "Houve um erro ao baixar o vídeo, tente novamente.", message.id).catch((erro) => {
-                        console.error('Error when sending: ', erro);
-                    });
-                    return;
-                })
+    if (message.type == "chat" && message.body) {
 
-                if (!fs.existsSync(join(__dirname, "temp", video_file_name))) {
-                    await client.reply(message.from, "Houve um erro ao baixar o vídeo, tente novamente.", message.id).catch((erro) => {
-                        console.error('Error when sending: ', erro);
-                    });
-                    return;
-                }
+        if (message.body.startsWith("https://www.tiktok.com") || message.body.startsWith("https://vm.tiktok.com")) {
 
-                var fileinfo = await new Promise((resolve) => {
-                    fs.stat(join(__dirname, "temp", video_file_name), (err, stats) => {
-                        if (!err)
-                            resolve(stats)
-                    });
-                });
+            var videoUrl = message.body;
 
-                if ((fileinfo.size / (1024 * 1024)) >= 16) {
-                    await client.reply(message.from, "O vídeo ultrapassa o limite de 16MB estabelecido pelo WhatsApp.", message.id).catch((erro) => {
-                        console.error('Error when sending: ', erro);
-                    });
-                    return;
-                }
+            if (message.body.startsWith("https://vm.tiktok.com")) {
+                videoUrl = await fetch(message.body, { redirect: 'follow' }).then(r => { return r.url; }).catch(function (err) { console.info(err + " url: " + url); });
+            }
 
-                const file_buffer = fs.readFileSync(join(__dirname, "temp", video_file_name));
-                const contents_in_base64 = file_buffer.toString('base64');
-                await client.sendFileFromBase64(message.from, `data:video/mp4;base64,${contents_in_base64}`, 'video.mp4', '').catch((erro) => {
+
+            console.log(videoUrl);
+
+            var videoMeta;
+
+            try {
+                videoMeta = await TikTokScraper.getVideoMeta(videoUrl)
+            } catch (error) {
+                await client.reply(message.from, "Houve um erro ao baixar o vídeo, tente novamente.", message.id).catch((erro) => {
                     console.error('Error when sending: ', erro);
                 });
+                return;
+            }
 
-                fs.unlink(join(__dirname, "temp", video_file_name), function (err) {
-                    if (err) return console.log(err);
-                });
+            var video_file_name = `${Math.floor(Math.random() * 101)}_${videoMeta.collector[0].id}.mp4`;
 
-            } else if (message.body.startsWith("https://www.youtube.com/watch") || message.body.startsWith("https://youtu.be/")) {
-
-                var youtube_video = ytdl(message.body)
-
-                var videoDetails = await new Promise((resolve) => {
-                    youtube_video.on('info', (info) => {
-                        resolve(info.videoDetails);
+            await fetch(videoMeta.collector[0].videoUrl).then(async (res) => {
+                await new Promise((resolve, reject) => {
+                    var dest = fs.createWriteStream(join(__dirname, "temp", video_file_name))
+                    dest.on('error', function (err) {
+                        console.log(err);
                     });
-                });
-
-                var videoId = videoDetails.videoId;
-                var videoSeconds = videoDetails.lengthSeconds;
-
-                if (videoSeconds >= (60 * 5)) {
-                    await client.reply(message.from, "O vídeo ultrapassa o limite de 5 minutos.", message.id).catch((erro) => {
-                        console.error('Error when sending: ', erro);
+                    res.body.pipe(dest);
+                    res.body.on("error", (err) => {
+                        console.log(err);
+                        reject(err);
                     });
-                    return;
-                }
-
-                var video_file_name = `${Math.floor(Math.random() * 101)}_${videoId}.mp4`;
-
-                await new Promise((resolve) => {
-                    var dest = fs.createWriteStream(join(__dirname, "temp", video_file_name));
-                    youtube_video.pipe(dest);
                     dest.on("finish", function () {
                         resolve();
                     });
                 });
-
-                if (!fs.existsSync(join(__dirname, "temp", video_file_name))) {
-                    await client.reply(message.from, "Houve um erro ao baixar o vídeo, tente novamente.", message.id).catch((erro) => {
-                        console.error('Error when sending: ', erro);
-                    });
-                    return;
-                }
-
-                var fileinfo = await new Promise((resolve) => {
-                    fs.stat(join(__dirname, "temp", video_file_name), (err, stats) => {
-                        if (!err)
-                            resolve(stats)
-                    });
+            }).catch(async (error) => {
+                console.log(error);
+                console.log(videoMeta);
+                await client.reply(message.from, "Houve um erro ao baixar o vídeo, tente novamente.", message.id).catch((erro) => {
+                    console.error('Error when sending: ', erro);
                 });
+                return;
+            })
 
-                if ((fileinfo.size / (1024 * 1024)) >= 16) {
-                    await client.reply(message.from, "O vídeo ultrapassa o limite de 16MB estabelecido pelo WhatsApp.", message.id).catch((erro) => {
-                        console.error('Error when sending: ', erro);
-                    });
-                } else {
-                    const file_buffer = fs.readFileSync(join(__dirname, "temp", video_file_name));
-                    const contents_in_base64 = file_buffer.toString('base64');
-                    await client.sendFileFromBase64(message.from, `data:video/mp4;base64,${contents_in_base64}`, 'video.mp4', '').catch((erro) => {
-                        console.error('Error when sending: ', erro);
-                    });
-                }
-
-                fs.unlink(join(__dirname, "temp", video_file_name), function (err) {
-                    if (err) return console.log(err);
+            if (!fs.existsSync(join(__dirname, "temp", video_file_name))) {
+                await client.reply(message.from, "Houve um erro ao baixar o vídeo, tente novamente.", message.id).catch((erro) => {
+                    console.error('Error when sending: ', erro);
                 });
-
-            } else if (message.body.startsWith("https://www.facebook.com") || message.body.startsWith("https://fb.watch") || message.body.startsWith("https://fb.com")) {
-
-                var facebook = await fbScraper.facebook(message.body);
-                if (!facebook.success) {
-                    await client.reply(message.from, "Erro ao obter vídeo.", message.id).catch((erro) => {
-                        console.error('Error when sending: ', erro);
-                    });
-                    return;
-                }
-
-                var video_file_name = `${Math.floor(Math.random() * 101)}_${message.from}.mp4`;
-
-                await fetch(facebook.url).then(async (res) => {
-                    await new Promise((resolve, reject) => {
-                        var dest = fs.createWriteStream(join(__dirname, "temp", video_file_name))
-                        dest.on('error', function (err) {
-                            console.log(err);
-                        });
-                        res.body.pipe(dest);
-                        res.body.on("error", (err) => {
-                            console.log(err);
-                            reject(err);
-                        });
-                        dest.on("finish", function () {
-                            resolve();
-                        });
-                    });
-                });
-
-                if (!fs.existsSync(join(__dirname, "temp", video_file_name))) {
-                    await client.reply(message.from, "Houve um erro ao baixar o vídeo, tente novamente.", message.id).catch((erro) => {
-                        console.error('Error when sending: ', erro);
-                    });
-                    return;
-                }
-
-                var fileinfo = await new Promise((resolve) => {
-                    fs.stat(join(__dirname, "temp", video_file_name), (err, stats) => {
-                        if (!err)
-                            resolve(stats)
-                    });
-                });
-
-                if ((fileinfo.size / (1024 * 1024)) >= 16) {
-                    await client.reply(message.from, "O vídeo ultrapassa o limite de 16MB estabelecido pelo WhatsApp.", message.id).catch((erro) => {
-                        console.error('Error when sending: ', erro);
-                    });
-                } else {
-                    const file_buffer = fs.readFileSync(join(__dirname, "temp", video_file_name));
-                    const contents_in_base64 = file_buffer.toString('base64');
-                    await client.sendFileFromBase64(message.from, `data:video/mp4;base64,${contents_in_base64}`, 'video.mp4', '').catch((erro) => {
-                        console.error('Error when sending: ', erro);
-                    });
-                }
-
-                fs.unlink(join(__dirname, "temp", video_file_name), function (err) {
-                    if (err) return console.log(err);
-                });
-
+                return;
             }
 
-        } else if (message.text) {
-            msg = message.text;
-        }
+            var fileinfo = await new Promise((resolve) => {
+                fs.stat(join(__dirname, "temp", video_file_name), (err, stats) => {
+                    if (!err)
+                        resolve(stats)
+                });
+            });
 
-        if (msg || String(msg).startsWith(config.prefix)) {
-            const args = msg.slice(`${config.prefix}`.length).trim().split(/ +/g)
-            const command = args.shift().toLowerCase();
-            const cmd = client.commands.get(command);
-            if (cmd) {
-                cmd.run(client, message, args);
+            if ((fileinfo.size / (1024 * 1024)) >= 16) {
+                await client.reply(message.from, "O vídeo ultrapassa o limite de 16MB estabelecido pelo WhatsApp.", message.id).catch((erro) => {
+                    console.error('Error when sending: ', erro);
+                });
+                return;
             }
+
+            const media = MessageMedia.fromFilePath(join(__dirname, "temp", video_file_name))
+            await message.reply(media).catch((erro) => {
+                console.error('Error when sending: ', erro);
+            });
+
+            fs.unlink(join(__dirname, "temp", video_file_name), function (err) {
+                if (err) return console.log(err);
+            });
+
+        } else if (message.body.startsWith("https://www.youtube.com/watch") || message.body.startsWith("https://youtu.be/")) {
+
+            var youtube_video = ytdl(message.body)
+
+            var videoDetails = await new Promise((resolve) => {
+                youtube_video.on('info', (info) => {
+                    resolve(info.videoDetails);
+                });
+            });
+
+            var videoId = videoDetails.videoId;
+            var videoSeconds = videoDetails.lengthSeconds;
+
+            if (videoSeconds >= (60 * 5)) {
+                await client.reply(message.from, "O vídeo ultrapassa o limite de 5 minutos.", message.id).catch((erro) => {
+                    console.error('Error when sending: ', erro);
+                });
+                return;
+            }
+
+            var video_file_name = `${Math.floor(Math.random() * 101)}_${videoId}.mp4`;
+
+            await new Promise((resolve) => {
+                var dest = fs.createWriteStream(join(__dirname, "temp", video_file_name));
+                youtube_video.pipe(dest);
+                dest.on("finish", function () {
+                    resolve();
+                });
+            });
+
+            if (!fs.existsSync(join(__dirname, "temp", video_file_name))) {
+                await client.reply(message.from, "Houve um erro ao baixar o vídeo, tente novamente.", message.id).catch((erro) => {
+                    console.error('Error when sending: ', erro);
+                });
+                return;
+            }
+
+            var fileinfo = await new Promise((resolve) => {
+                fs.stat(join(__dirname, "temp", video_file_name), (err, stats) => {
+                    if (!err)
+                        resolve(stats)
+                });
+            });
+
+            if ((fileinfo.size / (1024 * 1024)) >= 16) {
+                await client.reply(message.from, "O vídeo ultrapassa o limite de 16MB estabelecido pelo WhatsApp.", message.id).catch((erro) => {
+                    console.error('Error when sending: ', erro);
+                });
+            } else {
+                const media = MessageMedia.fromFilePath(join(__dirname, "temp", video_file_name))
+                await message.reply(media).catch((erro) => {
+                    console.error('Error when sending: ', erro);
+                });
+            }
+
+            fs.unlink(join(__dirname, "temp", video_file_name), function (err) {
+                if (err) return console.log(err);
+            });
+
+        } else if (message.body.startsWith("https://www.facebook.com") || message.body.startsWith("https://fb.watch") || message.body.startsWith("https://fb.com")) {
+
+            var facebook = await fbScraper.facebook(message.body);
+            if (!facebook.success) {
+                await client.reply(message.from, "Erro ao obter vídeo.", message.id).catch((erro) => {
+                    console.error('Error when sending: ', erro);
+                });
+                return;
+            }
+
+            var video_file_name = `${Math.floor(Math.random() * 101)}_${message.from}.mp4`;
+
+            await fetch(facebook.url).then(async (res) => {
+                await new Promise((resolve, reject) => {
+                    var dest = fs.createWriteStream(join(__dirname, "temp", video_file_name))
+                    dest.on('error', function (err) {
+                        console.log(err);
+                    });
+                    res.body.pipe(dest);
+                    res.body.on("error", (err) => {
+                        console.log(err);
+                        reject(err);
+                    });
+                    dest.on("finish", function () {
+                        resolve();
+                    });
+                });
+            });
+
+            if (!fs.existsSync(join(__dirname, "temp", video_file_name))) {
+                await client.reply(message.from, "Houve um erro ao baixar o vídeo, tente novamente.", message.id).catch((erro) => {
+                    console.error('Error when sending: ', erro);
+                });
+                return;
+            }
+
+            var fileinfo = await new Promise((resolve) => {
+                fs.stat(join(__dirname, "temp", video_file_name), (err, stats) => {
+                    if (!err)
+                        resolve(stats)
+                });
+            });
+
+            if ((fileinfo.size / (1024 * 1024)) >= 16) {
+                await client.reply(message.from, "O vídeo ultrapassa o limite de 16MB estabelecido pelo WhatsApp.", message.id).catch((erro) => {
+                    console.error('Error when sending: ', erro);
+                });
+            } else {
+                const media = MessageMedia.fromFilePath(join(__dirname, "temp", video_file_name))
+                await message.reply(media).catch((erro) => {
+                    console.error('Error when sending: ', erro);
+                });
+            }
+
+            fs.unlink(join(__dirname, "temp", video_file_name), function (err) {
+                if (err) return console.log(err);
+            });
+
         }
 
-    });
+    }
 
-    client.onAddedToGroup(async (chatEvent) => {
-        await client.sendText(chatEvent.id, "Olá, obrigado por me adicionar ao grupo, para ver as funções disponíveis use o comando !help").catch((erro) => {
-            console.error('Error when sending: ', erro);
-        });
-    });
+    if (message.body && String(message.body).startsWith(config.prefix)) {
+        const args = String(message.body).slice(`${config.prefix}`.length).trim().split(/ +/g)
+        const command = args.shift().toLowerCase();
+        const cmd = client.commands.get(command);
+        if (cmd) {
+            cmd.run(client, message, args);
+        }
+    }
 
-}
+});
+
+client.initialize();
 
 export function isInt(n) {
     return Number(n) === n && n % 1 === 0;
@@ -271,3 +301,8 @@ export function isInt(n) {
 export function isFloat(n) {
     return Number(n) === n && n % 1 !== 0;
 }
+
+process.on("SIGINT", async () => {
+    await client.destroy();
+    process.exit(0);
+});

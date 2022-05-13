@@ -1,3 +1,4 @@
 node_modules/
 tokens/
 temp/
+.wwebjs_auth/

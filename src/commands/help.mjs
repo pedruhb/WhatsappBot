@@ -15,7 +15,7 @@ export default {
 
         helpMessage += '*_Tem um feedback? entre em contato com o desenvolvedor: https://wa.me/5521998149241_*';
 
-        await client.reply(message.from, helpMessage, message.id).catch((erro) => {
+        await message.reply(helpMessage).catch((erro) => {
             console.error('Error when sending: ', erro);
         });
 

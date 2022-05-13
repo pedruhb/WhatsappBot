@@ -90,15 +90,12 @@ client.on('message', async (message) => {
                 videoUrl = await fetch(message.body, { redirect: 'follow' }).then(r => { return r.url; }).catch(function (err) { console.info(err + " url: " + url); });
             }
 
-
-            console.log(videoUrl);
-
             var videoMeta;
 
             try {
                 videoMeta = await TikTokScraper.getVideoMeta(videoUrl)
             } catch (error) {
-                await client.reply(message.from, "Houve um erro ao baixar o vídeo, tente novamente.", message.id).catch((erro) => {
+                await message.reply("Houve um erro ao baixar o vídeo, tente novamente.").catch((erro) => {
                     console.error('Error when sending: ', erro);
                 });
                 return;
@@ -124,14 +121,14 @@ client.on('message', async (message) => {
             }).catch(async (error) => {
                 console.log(error);
                 console.log(videoMeta);
-                await client.reply(message.from, "Houve um erro ao baixar o vídeo, tente novamente.", message.id).catch((erro) => {
+                await message.reply("Houve um erro ao baixar o vídeo, tente novamente.").catch((erro) => {
                     console.error('Error when sending: ', erro);
                 });
                 return;
             })
 
             if (!fs.existsSync(join(__dirname, "temp", video_file_name))) {
-                await client.reply(message.from, "Houve um erro ao baixar o vídeo, tente novamente.", message.id).catch((erro) => {
+                await message.reply("Houve um erro ao baixar o vídeo, tente novamente.").catch((erro) => {
                     console.error('Error when sending: ', erro);
                 });
                 return;
@@ -145,7 +142,7 @@ client.on('message', async (message) => {
             });
 
             if ((fileinfo.size / (1024 * 1024)) >= 16) {
-                await client.reply(message.from, "O vídeo ultrapassa o limite de 16MB estabelecido pelo WhatsApp.", message.id).catch((erro) => {
+                await message.reply("O vídeo ultrapassa o limite de 16MB estabelecido pelo WhatsApp.").catch((erro) => {
                     console.error('Error when sending: ', erro);
                 });
                 return;
@@ -174,7 +171,7 @@ client.on('message', async (message) => {
             var videoSeconds = videoDetails.lengthSeconds;
 
             if (videoSeconds >= (60 * 5)) {
-                await client.reply(message.from, "O vídeo ultrapassa o limite de 5 minutos.", message.id).catch((erro) => {
+                await message.reply("O vídeo ultrapassa o limite de 5 minutos.").catch((erro) => {
                     console.error('Error when sending: ', erro);
                 });
                 return;
@@ -191,7 +188,7 @@ client.on('message', async (message) => {
             });
 
             if (!fs.existsSync(join(__dirname, "temp", video_file_name))) {
-                await client.reply(message.from, "Houve um erro ao baixar o vídeo, tente novamente.", message.id).catch((erro) => {
+                await message.reply("Houve um erro ao baixar o vídeo, tente novamente.").catch((erro) => {
                     console.error('Error when sending: ', erro);
                 });
                 return;
@@ -205,7 +202,7 @@ client.on('message', async (message) => {
             });
 
             if ((fileinfo.size / (1024 * 1024)) >= 16) {
-                await client.reply(message.from, "O vídeo ultrapassa o limite de 16MB estabelecido pelo WhatsApp.", message.id).catch((erro) => {
+                await message.reply("O vídeo ultrapassa o limite de 16MB estabelecido pelo WhatsApp.").catch((erro) => {
                     console.error('Error when sending: ', erro);
                 });
             } else {
@@ -223,7 +220,7 @@ client.on('message', async (message) => {
 
             var facebook = await fbScraper.facebook(message.body);
             if (!facebook.success) {
-                await client.reply(message.from, "Erro ao obter vídeo.", message.id).catch((erro) => {
+                await message.reply("Erro ao obter vídeo.").catch((erro) => {
                     console.error('Error when sending: ', erro);
                 });
                 return;
@@ -249,7 +246,7 @@ client.on('message', async (message) => {
             });
 
             if (!fs.existsSync(join(__dirname, "temp", video_file_name))) {
-                await client.reply(message.from, "Houve um erro ao baixar o vídeo, tente novamente.", message.id).catch((erro) => {
+                await message.reply("Houve um erro ao baixar o vídeo, tente novamente.").catch((erro) => {
                     console.error('Error when sending: ', erro);
                 });
                 return;
@@ -263,7 +260,7 @@ client.on('message', async (message) => {
             });
 
             if ((fileinfo.size / (1024 * 1024)) >= 16) {
-                await client.reply(message.from, "O vídeo ultrapassa o limite de 16MB estabelecido pelo WhatsApp.", message.id).catch((erro) => {
+                await message.reply("O vídeo ultrapassa o limite de 16MB estabelecido pelo WhatsApp.").catch((erro) => {
                     console.error('Error when sending: ', erro);
                 });
             } else {

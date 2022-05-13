@@ -7,19 +7,32 @@ export default {
 
         const options = { "sendMediaAsSticker": true, "stickerAuthor": "PHB", "stickerName": "PHB BOT", "stickerCategories": "😀" };
 
-        if (message.hasMedia) {
-            const attachmentData = await message.downloadMedia();
-            const media = new MessageMedia(attachmentData.mimetype, attachmentData.data, attachmentData.filename)
-            await client.sendMessage(message.from, media, options);
-        } else {
-            const quotedMsg = await message.getQuotedMessage();
-            if (quotedMsg && quotedMsg.hasMedia) {
-                const attachmentData = await quotedMsg.downloadMedia();
+        try {
+            if (message.hasMedia) {
+
+                const attachmentData = await message.downloadMedia();
                 const media = new MessageMedia(attachmentData.mimetype, attachmentData.data, attachmentData.filename)
-                await client.sendMessage(message.from, media, options);
+                await client.sendMessage(message.from, media, options).catch((erro) => {
+                    console.error('Error when sending: ', erro);
+                });
+
             } else {
-                await message.reply("Imagem não encontrada!");
+
+                const quotedMsg = await message.getQuotedMessage();
+                if (quotedMsg && quotedMsg.hasMedia) {
+                    const attachmentData = await quotedMsg.downloadMedia();
+                    const media = new MessageMedia(attachmentData.mimetype, attachmentData.data, attachmentData.filename)
+                    await client.sendMessage(message.from, media, options).catch((erro) => {
+                        console.error('Error when sending: ', erro);
+                    });
+
+                } else {
+                    await message.reply("Imagem não encontrada!");
+                }
             }
+        } catch (err) {
+            console.log("Sticker Error", err);
+            await message.reply("Erro ao gerar sticker.");
         }
 
     },

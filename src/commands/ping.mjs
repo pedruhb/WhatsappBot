@@ -2,15 +2,15 @@ export default {
 
     async run(client, message, args) {
 
-        message.reply(`Pong`).catch((erro) => {
+        message.reply(`Pong 🏓`).catch((erro) => {
             console.error('Error when sending: ', erro);
         });
 
     },
 
     info: {
-        name: 'Obter informações do bot',
-        description: 'Exibe informações do bot.',
+        name: 'Ping',
+        description: 'Ping? Pong!',
         usage: 'ping',
         hide: true
     }

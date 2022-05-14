@@ -8,19 +8,20 @@ import { fileURLToPath } from 'url';
 import ytdl from 'ytdl-core';
 import Enmap from 'enmap';
 import config from './config.js';
-import Scraper from './fb-scraper.js';
 import qrcode from 'qrcode-terminal';
 import { yo } from 'yoo-hoo';
 import { logger } from './logger.js';
+import PHBScraper from './PHBScraper.js';
 
 export const __dirname = join(dirname(fileURLToPath(import.meta.url)), "../");
 const cmdFiles = readdirSync(join(__dirname, "src", "commands"));
-const fbScraper = new Scraper();
 
 console.log('\n\n');
 yo("Robozin", { color: 'rainbow' });
 console.log('\n\n');
 logger.info('Iniciando...');
+
+const phbscraper = new PHBScraper();
 
 const client = new Client({
     puppeteer: config.puppeteer,
@@ -216,9 +217,9 @@ client.on('message', async (message) => {
                 if (err) return console.log(err);
             });
 
-        } else if (message.body.startsWith("https://www.facebook.com") || message.body.startsWith("https://fb.watch") || message.body.startsWith("https://fb.com")) {
+        } else if (message.body.includes("facebook.com") || message.body.includes("fb.com") || message.body.includes("fb.watch")) {
 
-            var facebook = await fbScraper.facebook(message.body);
+            var facebook = await phbscraper.facebook(message.body);
             if (!facebook.success) {
                 await message.reply("Erro ao obter vídeo.").catch((erro) => {
                     console.error('Error when sending: ', erro);
@@ -274,6 +275,88 @@ client.on('message', async (message) => {
                 if (err) return console.log(err);
             });
 
+        } else if (message.body.startsWith("https://www.instagram.com/")) {
+
+            var instagram = await phbscraper.instagram(message.body);
+
+            if (!instagram || !instagram.url || !instagram.url[0]) {
+                await message.reply("Erro ao obter vídeo.").catch((erro) => {
+                    console.error('Error when sending: ', erro);
+                });
+                return;
+            }
+
+            for (var i = 0; i < instagram.url.length; i++) {
+
+                var i_url = instagram.url[i];
+
+                await fetch(i_url).then(async (res) => {
+
+                    if (res.headers.get("content-type").startsWith("image")) {
+
+                        const media = await MessageMedia.fromUrl(i_url, { unsafeMime: true })
+
+                        await message.reply(media).catch((erro) => {
+                            console.error('Error when sending: ', erro);
+                        });
+
+                    } else if (res.headers.get("content-type").startsWith("video")) {
+
+                        var video_file_name = `instagram_${Math.floor(Math.random() * 999)}_${i}_${message.from}.mp4`;
+
+                        await new Promise((resolve, reject) => {
+                            var dest = fs.createWriteStream(join(__dirname, "temp", video_file_name))
+                            dest.on('error', function (err) {
+                                console.log(err);
+                            });
+                            res.body.pipe(dest);
+                            res.body.on("error", (err) => {
+                                console.log(err);
+                                reject(err);
+                            });
+                            dest.on("finish", function () {
+                                resolve();
+                            });
+                        });
+
+                        if (!fs.existsSync(join(__dirname, "temp", video_file_name))) {
+                            await message.reply("Houve um erro ao baixar o vídeo, tente novamente.").catch((erro) => {
+                                console.error('Error when sending: ', erro);
+                            });
+                        }
+
+                        var fileinfo = await new Promise((resolve) => {
+                            fs.stat(join(__dirname, "temp", video_file_name), (err, stats) => {
+                                if (!err)
+                                    resolve(stats)
+                            });
+                        });
+
+                        if ((fileinfo.size / (1024 * 1024)) >= 16) {
+
+                            await message.reply("O vídeo ultrapassa o limite de 16MB estabelecido pelo WhatsApp.").catch((erro) => {
+                                console.error('Error when sending: ', erro);
+                            });
+
+                        } else {
+
+                            const media = MessageMedia.fromFilePath(join(__dirname, "temp", video_file_name))
+                            await message.reply(media).catch((erro) => {
+                                console.error('Error when sending: ', erro);
+                            });
+
+                        }
+
+                        fs.unlink(join(__dirname, "temp", video_file_name), function (err) {
+                            if (err) return console.log(err);
+                        });
+
+                    }
+
+                });
+
+            }
+
         }
 
     }
@@ -301,5 +384,6 @@ export function isFloat(n) {
 
 process.on("SIGINT", async () => {
     await client.destroy();
+    await phbscraper.destroy();
     process.exit(0);
 });

@@ -17,14 +17,28 @@ export default {
         if (quotedMsg && quotedMsg.hasMedia) {
 
             const attachmentData = await quotedMsg.downloadMedia();
-            const media = new MessageMedia(attachmentData.mimetype, attachmentData.data, attachmentData.filename);
-            userPhoto = `data:${media.mimetype};base64,${media.data}`;
+
+            if (attachmentData.mimetype == "image/webp") {
+                await message.reply("O formato da imagem mencionada não é válido.").catch((erro) => {
+                    console.error('Error when sending: ', erro);
+                });
+                return;
+            }
+
+            userPhoto = `data:${attachmentData.mimetype};base64,${attachmentData.data}`;
 
         } else if (message.hasMedia) {
 
             const attachmentData = await message.downloadMedia();
-            const media = new MessageMedia(attachmentData.mimetype, attachmentData.data, attachmentData.filename);
-            userPhoto = `data:${media.mimetype};base64,${media.data}`;
+
+            if (attachmentData.mimetype == "image/webp") {
+                await message.reply("O formato da imagem enviada não é válido.").catch((erro) => {
+                    console.error('Error when sending: ', erro);
+                });
+                return;
+            }
+
+            userPhoto = `data:${attachmentData.mimetype};base64,${attachmentData.data}`;
 
         } else if (mentions.length == 1) {
 
@@ -51,16 +65,14 @@ export default {
         args.shift();
         var nome = args.join(" ");
 
-        if (userPhoto == undefined || userPhoto == null) {
+        if (!userPhoto) {
             userPhoto = join(__dirname, "src", "assets", "default.jpg");
         }
 
         const canvas = createCanvas(1080, 1350)
         const ctx = canvas.getContext("2d")
-
         const avatar = await loadImage(userPhoto);
         const luto = await loadImage(join(__dirname, "src", "assets", "rip", "luto.png"));
-
         ctx.drawImage(avatar, 10, 135, 1060, canvas.width)
         ctx.font = '70px sans-serif';
         ctx.textBaseline = 'middle';
@@ -71,7 +83,6 @@ export default {
         ctx.shadowOffsetX = ctx.shadowOffsetY = 5;
         ctx.shadowColor = "white";
         ctx.drawImage(luto, 335, 850, 400, 300);
-
         var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         var data = imageData.data;
         for (var i = 0; i < data.length; i += 4) {

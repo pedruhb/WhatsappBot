@@ -1,3 +1,11 @@
+# Instalação
+```
+git clone https://github.com/pedruhb/WhatsappBot
+cd WhatsappBot
+npm i
+npm run start
+```
+
 # Comandos
 !dolar - Informa a cotação atual do dólar (utilizando a API https://economia.awesomeapi.com.br/json/last/USD-BRL)
 

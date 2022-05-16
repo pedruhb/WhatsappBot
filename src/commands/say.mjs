@@ -9,7 +9,7 @@ export default {
         var mensagem = args.join(' ');
 
         const quotedMsg = await message.getQuotedMessage();
-        if (quotedMsg) {
+        if (quotedMsg && message.length == 0) {
             mensagem = quotedMsg.body;
         }
 
@@ -43,9 +43,9 @@ export default {
     },
 
     info: {
-        name: 'Say',
+        name: 'RIP',
         description: 'Transcreve uma mensagem ou texto.',
-        usage: 'say'
+        usage: 'rip'
     }
 
 }

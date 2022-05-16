@@ -16,7 +16,7 @@ export default {
             photoUrl = await mentions[0].getProfilePicUrl();
         }
 
-        if (photoUrl == undefined || photoUrl == null) {
+        if (!photoUrl) {
             await message.reply("Não foi possível obter a foto de perfil, ela pode ser privada.").catch((erro) => {
                 console.error('Error when sending: ', erro);
             });

@@ -12,9 +12,12 @@ import qrcode from 'qrcode-terminal';
 import { yo } from 'yoo-hoo';
 import { logger } from './logger.js';
 import PHBScraper from './PHBScraper.js';
+import ffmpeg from 'fluent-ffmpeg';
 
 export const __dirname = join(dirname(fileURLToPath(import.meta.url)), "../");
 const cmdFiles = readdirSync(join(__dirname, "src", "commands"));
+
+ffmpeg.setFfmpegPath(join(__dirname, "src", "ffmpeg", "ffmpeg.exe"));
 
 console.log('\n\n');
 yo("Robozin", { color: 'rainbow' });
@@ -30,21 +33,6 @@ const client = new Client({
 
 client.commands = new Enmap();
 
-cmdFiles.forEach(async (f) => {
-    try {
-        const props = await import(`./commands/${f}`).catch(err => { console.log(err); });
-        if (f.split('.').slice(-1)[0] !== 'mjs') return;
-        logger.info(`Carregando o comando \u001b[0m\u001b[31m${props.default.info.name}\u001b[0m`);
-        if (props.default.init) props.default.init(client)
-        client.commands.set(props.default.info.usage, props.default)
-        if (props.default.info.aliases) {
-            props.default.alias = true
-            props.default.info.aliases.forEach(alias => client.commands.set(alias, props.default))
-        }
-    } catch (e) {
-        logger.info(`Impossível carregar o comando \u001b[0m\u001b[31m${f}: ${e}\u001b[0m`)
-    }
-})
 
 if (!fs.existsSync("temp")) {
     await fs.mkdirSync("temp");
@@ -56,15 +44,32 @@ client.on('qr', (qr) => {
 });
 
 client.on('ready', () => {
+
+    cmdFiles.forEach(async (f) => {
+        try {
+            const props = await import(`./commands/${f}`).catch(err => { console.log(err); });
+            if (f.split('.').slice(-1)[0] !== 'mjs') return;
+            logger.info(`Carregando o comando \u001b[0m\u001b[31m${props.default.info.name}\u001b[0m`);
+            if (props.default.init) props.default.init(client)
+            client.commands.set(props.default.info.usage, props.default)
+            if (props.default.info.aliases) {
+                props.default.alias = true
+                props.default.info.aliases.forEach(alias => client.commands.set(alias, props.default))
+            }
+        } catch (e) {
+            logger.info(`Impossível carregar o comando \u001b[0m\u001b[31m${f}: ${e}\u001b[0m`)
+        }
+    })
+
     logger.info('Cliente conectada!');
 });
 
 client.on('group_join', (notification) => {
-    notification.reply('Olá, obrigado por me adicionar ao grupo, para ver as funções disponíveis use o comando !help');
+    //notification.reply('Olá, seja bem vindo ao grupo.');
 });
 
 client.on('change_state', state => {
-    logger.info('CHANGE STATE', state);
+    logger.info('State changed.', state);
 });
 
 client.on('disconnected', (reason) => {
@@ -158,7 +163,9 @@ client.on('message', async (message) => {
                 if (err) return console.log(err);
             });
 
-        } else if (message.body.startsWith("https://www.youtube.com/watch") || message.body.startsWith("https://youtu.be/")) {
+        }
+
+        else if (message.body.startsWith("https://www.youtube.com/watch") || message.body.startsWith("https://youtu.be/")) {
 
             var youtube_video = ytdl(message.body)
 
@@ -207,17 +214,21 @@ client.on('message', async (message) => {
                     console.error('Error when sending: ', erro);
                 });
             } else {
-                const media = MessageMedia.fromFilePath(join(__dirname, "temp", video_file_name))
-                await message.reply(media).catch((erro) => {
+
+                const media = MessageMedia.fromFilePath(join(__dirname, "temp", video_file_name));
+                await message.reply(media).catch(async (erro) => {
                     console.error('Error when sending: ', erro);
                 });
+
             }
 
             fs.unlink(join(__dirname, "temp", video_file_name), function (err) {
                 if (err) return console.log(err);
             });
 
-        } else if (message.body.includes("facebook.com") || message.body.includes("fb.com") || message.body.includes("fb.watch")) {
+        }
+
+        else if (message.body.includes("facebook.com") || message.body.includes("fb.com") || message.body.includes("fb.watch")) {
 
             var facebook = await phbscraper.facebook(message.body);
             if (!facebook.success) {
@@ -261,21 +272,27 @@ client.on('message', async (message) => {
             });
 
             if ((fileinfo.size / (1024 * 1024)) >= 16) {
+
                 await message.reply("O vídeo ultrapassa o limite de 16MB estabelecido pelo WhatsApp.").catch((erro) => {
                     console.error('Error when sending: ', erro);
                 });
+
             } else {
+
                 const media = MessageMedia.fromFilePath(join(__dirname, "temp", video_file_name))
                 await message.reply(media).catch((erro) => {
                     console.error('Error when sending: ', erro);
                 });
+
             }
 
             fs.unlink(join(__dirname, "temp", video_file_name), function (err) {
                 if (err) return console.log(err);
             });
 
-        } else if (message.body.startsWith("https://www.instagram.com/")) {
+        }
+
+        else if (message.body.startsWith("https://www.instagram.com/")) {
 
             var instagram = await phbscraper.instagram(message.body);
 

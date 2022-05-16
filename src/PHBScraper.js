@@ -1,8 +1,15 @@
+import fetch from "node-fetch";
 import puppeteer from "puppeteer";
+import config from "./config.js";
 import { logger } from './logger.js';
 
 const iPhone = puppeteer.devices['iPhone 6'];
-const browser = await puppeteer.launch({ headless: false, userDataDir: './temp/phb-scraper/' });
+
+const browser = await puppeteer.launch({
+    executablePath: config.puppeteer.executablePath,
+    headless: false,
+    userDataDir: './temp/phb-scraper/'
+});
 
 export default class PHBScraper {
 
@@ -12,10 +19,12 @@ export default class PHBScraper {
 
     async start() {
         logger.info("[PHB Scraper] Iniciando...");
-        const page = await browser.newPage();
+        const page_i = await browser.newPage();
         const pages = await browser.pages();
         if (pages.length > 1) await pages[0].close();
-        await page.goto('https://www.instagram.com/accounts/login/');
+        await page_i.goto('https://www.instagram.com/accounts/login/');
+        const page_f = await browser.newPage();
+        await page_f.goto('https://www.facebook.com');
     }
 
     async instagram(url) {
@@ -94,8 +103,6 @@ export default class PHBScraper {
 
     async facebook(url) {
 
-        console.log(url);
-
         var link;
 
         try {
@@ -129,6 +136,11 @@ async function facebook_watch(url) {
 
     const page = await browser.newPage();
     await page.emulate(iPhone);
+
+    if (url.href.includes("fb.watch")) {
+        url = await fetch(url.href, { redirect: 'follow' }).then(r => { return r.url; }).catch(function (err) { console.info(err + " url: " + url); });
+    }
+
     await page.goto(url);
 
     const videoUrl = await page.evaluate(() => {

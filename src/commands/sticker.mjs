@@ -5,9 +5,10 @@ export default {
 
     async run(client, message, args) {
 
-        const options = { "sendMediaAsSticker": true, "stickerAuthor": "PHB", "stickerName": "PHB BOT", "stickerCategories": "😀" };
+        const options = { "sendMediaAsSticker": true, "stickerAuthor": "https://github.com/pedruhb/WhatsappBot", "stickerName": "PHB", "stickerCategories": "😀" };
 
         try {
+            
             if (message.hasMedia) {
 
                 const attachmentData = await message.downloadMedia();
@@ -30,6 +31,7 @@ export default {
                     await message.reply("Imagem não encontrada!");
                 }
             }
+
         } catch (err) {
             console.log("Sticker Error", err);
             await message.reply("Erro ao gerar sticker.");
@@ -39,7 +41,7 @@ export default {
 
     info: {
         name: 'Sticker',
-        description: 'Transforma foto/video em sticker.',
+        description: 'Transforma uma foto/video em sticker.',
         usage: 'sticker'
     }
 

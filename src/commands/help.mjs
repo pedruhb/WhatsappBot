@@ -6,7 +6,7 @@ export default {
 
         var helpMessage = 'Olá, sou um robô em desenvolvimento.\n\n' +
             '```Veja a minha lista de funções:``` \n\n' +
-            '*Baixar vídeo:* ```Envie o link de um vídeo do TikTok, Facebook ou Youtube.```\n\n';
+            '*Baixar vídeo:* ```Envie o link de um vídeo do TikTok, Instagram, Facebook ou Youtube.```\n\n';
 
         let commands = client.commands
         commands.forEach(command => {

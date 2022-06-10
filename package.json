@@ -24,6 +24,7 @@
     "enmap": "^5.9.0",
     "fluent-ffmpeg": "^2.1.2",
     "forever": "^4.0.3",
+    "gifencoder": "^2.0.1",
     "google-tts-api": "^2.0.2",
     "node-fetch": "^3.2.3",
     "nodemon": "^2.0.15",

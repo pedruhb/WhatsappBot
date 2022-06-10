@@ -1,40 +1,53 @@
-import whatsappApi from 'whatsapp-web.js';
-const { MessageMedia } = whatsappApi;
+import { downloadContentFromMessage } from '@adiwajshing/baileys'
+import sharp from 'sharp';
 
 export default {
 
-    async run(client, message, args) {
-
-        const options = { "sendMediaAsSticker": true, "stickerAuthor": "https://github.com/pedruhb/WhatsappBot", "stickerName": "PHB", "stickerCategories": "😀" };
+    async run(sock, msg, args) {
 
         try {
-            
-            if (message.hasMedia) {
 
-                const attachmentData = await message.downloadMedia();
-                const media = new MessageMedia(attachmentData.mimetype, attachmentData.data, attachmentData.filename)
-                await client.sendMessage(message.from, media, options).catch((erro) => {
-                    console.error('Error when sending: ', erro);
-                });
+            let buffer = Buffer.from([])
 
-            } else {
-
-                const quotedMsg = await message.getQuotedMessage();
-                if (quotedMsg && quotedMsg.hasMedia) {
-                    const attachmentData = await quotedMsg.downloadMedia();
-                    const media = new MessageMedia(attachmentData.mimetype, attachmentData.data, attachmentData.filename)
-                    await client.sendMessage(message.from, media, options).catch((erro) => {
-                        console.error('Error when sending: ', erro);
-                    });
-
+            if (msg.quotedMessage) {
+                const messageType = Object.keys(msg.quotedMessage)[0]
+                if (messageType === 'imageMessage') {
+                    const stream = await downloadContentFromMessage(msg.quotedMessage.imageMessage, 'image')
+                    for await (const chunk of stream) {
+                        buffer = Buffer.concat([buffer, chunk])
+                    }
                 } else {
-                    await message.reply("Imagem não encontrada!");
+                    await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+                    await sock.sendMessage(msg.key.remoteJid, { text: "A mensagem marcada não é uma imagem." }, { quoted: msg })
+                    return;
+                }
+            } else {
+                const messageType = Object.keys(msg.message)[0]
+                if (messageType === 'imageMessage') {
+                    const stream = await downloadContentFromMessage(msg.message.imageMessage, 'image')
+                    for await (const chunk of stream) {
+                        buffer = Buffer.concat([buffer, chunk])
+                    }
+                } else {
+                    await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+                    await sock.sendMessage(msg.key.remoteJid, { text: "Você deve enviar ou marcar uma imagem." }, { quoted: msg })
+                    return;
                 }
             }
 
+            const sticker_buffer = await sharp(buffer).webp().toBuffer().catch(async err => {
+                console.log("Sticker Error (Sharp) ", err);
+                await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+                await sock.sendMessage(msg.key.remoteJid, { text: "Erro ao gerar sticker!" }, { quoted: msg })
+            });
+
+            await sock.sendMessage(msg.key.remoteJid, { react: { text: "👍", key: msg.key } });
+            await sock.sendMessage(msg.key.remoteJid, { sticker: sticker_buffer }, { quoted: msg })
+
         } catch (err) {
             console.log("Sticker Error", err);
-            await message.reply("Erro ao gerar sticker.");
+            await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+            await sock.sendMessage(msg.key.remoteJid, { text: "Erro ao gerar sticker!" }, { quoted: msg })
         }
 
     },
@@ -42,7 +55,7 @@ export default {
     info: {
         name: 'Sticker',
         description: 'Transforma uma foto/video em sticker.',
-        usage: 'sticker'
+        usage: ['sticker', 'figurinha']
     }
 
 }

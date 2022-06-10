@@ -3,3 +3,4 @@ tokens/
 temp/
 .wwebjs_auth/
 *.class
+baileys_auth_info.json

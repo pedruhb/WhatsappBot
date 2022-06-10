@@ -1,30 +1,39 @@
+import { getCommandList } from "../bot.js";
 import config from "../config.js";
 
 export default {
 
-    async run(client, message, args) {
+    async run(sock, msg, args) {
 
-        var helpMessage = 'Olá, sou um robô em desenvolvimento.\n\n' +
-            '```Veja a minha lista de funções:``` \n\n' +
-            '*Baixar vídeo:* ```Envie o link de um vídeo do TikTok, Instagram, Facebook ou Youtube.```\n\n';
+        const sections = [
+            {
+                title: "Comandos",
+                rows: [
+                ]
+            }
+        ]
 
-        let commands = client.commands
-        commands.forEach(command => {
-            if (!command.info.hide) helpMessage += '*' + command.info.name + ':* ```' + config.prefix + '' + command.info.usage + ' -  ' + command.info.description + '```\n\n'
+        getCommandList().forEach(command => {
+            sections[0].rows.push({ title: `${config.prefix}${command.usage[0]}`, rowId: `${config.prefix}${command.usage[0]}`, description: `${command.description} - Aliases: ${command.usage.join(", ")}.` })
         })
 
-        helpMessage += '*_Tem um feedback? entre em contato com o desenvolvedor: https://wa.me/5521998149241_*';
+        const listMessage = {
+            text: "```Funções passivas:```\n\n*Baixar vídeo:* ```Envie o link de um vídeo do TikTok, Instagram, Facebook ou Youtube.```\n\n",
+            footer: "https://github.com/pedruhb/WhatsappBot",
+            title: "Olá, sou um robô em desenvolvimento",
+            buttonText: "Comandos",
+            sections
+        }
 
-        await message.reply(helpMessage).catch((erro) => {
-            console.error('Error when sending: ', erro);
-        });
+        await sock.sendMessage(msg.key.remoteJid, { react: { text: "🆘", key: msg.key } });
+        await sock.sendMessage(msg.key.remoteJid, listMessage, { quoted: msg })
 
     },
 
     info: {
         name: 'Ajuda',
         description: 'Mais informações.',
-        usage: 'help'
+        usage: ['help', 'ajuda']
     }
 
 }

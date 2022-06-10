@@ -1,62 +1,56 @@
-import whatsappApi from 'whatsapp-web.js';
-const { MessageMedia } = whatsappApi;
-import pkg_canvas from 'canvas';
-const { createCanvas, loadImage } = pkg_canvas;
+
 import { join } from 'path';
 import { __dirname } from '../bot.js';
+import { downloadContentFromMessage } from '@adiwajshing/baileys'
+import pkg from '@napi-rs/canvas';
+import { readFile } from 'fs';
+import fetch from 'node-fetch';
+const { createCanvas, Image } = pkg;
 
 export default {
 
-    async run(client, message, args) {
-
-        var userPhoto;
-
-        const mentions = await message.getMentions();
-        const quotedMsg = await message.getQuotedMessage();
-
-        if (quotedMsg && quotedMsg.hasMedia) {
-
-            const attachmentData = await quotedMsg.downloadMedia();
-
-            if (attachmentData.mimetype == "image/webp") {
-                await message.reply("O formato da imagem mencionada não é válido.").catch((erro) => {
-                    console.error('Error when sending: ', erro);
-                });
-                return;
-            }
-
-            userPhoto = `data:${attachmentData.mimetype};base64,${attachmentData.data}`;
-
-        } else if (message.hasMedia) {
-
-            const attachmentData = await message.downloadMedia();
-
-            if (attachmentData.mimetype == "image/webp") {
-                await message.reply("O formato da imagem enviada não é válido.").catch((erro) => {
-                    console.error('Error when sending: ', erro);
-                });
-                return;
-            }
-
-            userPhoto = `data:${attachmentData.mimetype};base64,${attachmentData.data}`;
-
-        } else if (mentions.length == 1) {
-
-            userPhoto = await mentions[0].getProfilePicUrl();
-            args.shift();
-
-        } else {
-
-            var profile = await message.getContact();
-            userPhoto = await profile.getProfilePicUrl();
-
-        }
+    async run(sock, msg, args) {
 
         if (args.length < 3) {
-            await message.reply("Você deve fornecer informações adicionais.\nExemplo: !rip @usuario [nascimento] [morte] [nome da pessoa]").catch((erro) => {
-                console.error('Error when sending: ', erro);
-            });
+            await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+            await sock.sendMessage(msg.key.remoteJid, { text: "Você deve fornecer informações adicionais.\nExemplo: !rip @usuario [nascimento] [morte] [nome da pessoa]" }, { quoted: msg })
             return;
+        }
+
+        var userPhoto;
+        let buffer = Buffer.from([]);
+        const messageType = Object.keys(msg.message)[0];
+
+        if (msg.quotedMessage) {
+            const messageType = Object.keys(msg.quotedMessage)[0]
+            if (messageType === 'imageMessage') {
+                const stream = await downloadContentFromMessage(msg.quotedMessage.imageMessage, 'image')
+                for await (const chunk of stream) {
+                    buffer = Buffer.concat([buffer, chunk])
+                }
+                userPhoto = buffer.toString('base64');
+            } else {
+                await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+                await sock.sendMessage(msg.key.remoteJid, { text: "A mensagem marcada não é uma imagem." }, { quoted: msg })
+                return;
+            }
+        } else if (messageType === 'imageMessage') {
+            const stream = await downloadContentFromMessage(msg.message.imageMessage, 'image')
+            for await (const chunk of stream) {
+                buffer = Buffer.concat([buffer, chunk])
+            }
+            userPhoto = buffer.toString('base64');
+        } else if (msg.message.extendedTextMessage && msg.message.extendedTextMessage.contextInfo.mentionedJid.length > 0) {
+            userPhoto = await sock.profilePictureUrl(msg.message.extendedTextMessage.contextInfo.mentionedJid[0], 'image')
+            args.shift();
+            var fimg = await fetch(userPhoto);
+            var imgbuffer = await fimg.arrayBuffer();
+            userPhoto = Buffer.from(imgbuffer)
+        } else {
+            userPhoto = await sock.profilePictureUrl(msg.key.participant ? msg.key.participant : msg.key.remoteJid, 'image');
+            var fimg = await fetch(userPhoto);
+            var imgbuffer = await fimg.arrayBuffer();
+            userPhoto = Buffer.from(imgbuffer)
         }
 
         var nascimento = args[0];
@@ -64,16 +58,36 @@ export default {
         args.shift();
         args.shift();
         var nome = args.join(" ");
+        var lutoimg;
 
         if (!userPhoto) {
-            userPhoto = join(__dirname, "src", "assets", "default.jpg");
+            userPhoto = await new Promise((resolve) => readFile(join(__dirname, "src", "assets", "default.jpg"), (err, data) => {
+                if (err) {
+                    console.error(err);
+                    return;
+                }
+                resolve(data);
+            }));
         }
+
+        lutoimg = await new Promise((resolve) => readFile(join(__dirname, "src", "assets", "rip", "luto.png"), (err, data) => {
+            if (err) {
+                console.error(err);
+                return;
+            }
+            resolve(data);
+        }));
 
         const canvas = createCanvas(1080, 1350)
         const ctx = canvas.getContext("2d")
-        const avatar = await loadImage(userPhoto);
-        const luto = await loadImage(join(__dirname, "src", "assets", "rip", "luto.png"));
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "black";
+        const avatar = new Image()
+        avatar.src = userPhoto;
         ctx.drawImage(avatar, 10, 135, 1060, canvas.width)
+        const luto = new Image()
+        luto.src = lutoimg;
         ctx.font = '70px sans-serif';
         ctx.textBaseline = 'middle';
         ctx.textAlign = 'center';
@@ -93,19 +107,15 @@ export default {
         }
         ctx.putImageData(imageData, 0, 0);
 
-        const mediaBase64 = canvas.toBuffer().toString('base64');
-        const media = new MessageMedia('image/png', mediaBase64);
-
-        await client.sendMessage(message.from, media).catch((erro) => {
-            console.error('Error when sending: ', erro);
-        });
+        await sock.sendMessage(msg.key.remoteJid, { react: { text: "👍", key: msg.key } });
+        await sock.sendMessage(msg.key.remoteJid, { image: canvas.toBuffer('image/png') }, { quoted: msg })
 
     },
 
     info: {
         name: 'RIP',
         description: 'Cria imagem de RIP de um usuário.',
-        usage: 'rip'
+        usage: ['rip', 'morte']
     }
 
 }

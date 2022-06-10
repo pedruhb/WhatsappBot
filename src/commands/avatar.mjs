@@ -1,40 +1,46 @@
-import whatsappApi from 'whatsapp-web.js';
-const { MessageMedia } = whatsappApi;
+import fetch from "node-fetch";
 
 export default {
 
-    async run(client, message, args) {
+    async run(sock, msg, args) {
 
         var photoUrl;
 
-        const mentions = await message.getMentions();
-
-        if (mentions.length == 0) {
-            var profile = await message.getContact();
-            photoUrl = await profile.getProfilePicUrl();
+        if (msg.message.extendedTextMessage && msg.message.extendedTextMessage.contextInfo.mentionedJid.length > 0) {
+            photoUrl = await sock.profilePictureUrl(msg.message.extendedTextMessage.contextInfo.mentionedJid[0], 'image')
         } else {
-            photoUrl = await mentions[0].getProfilePicUrl();
+            photoUrl = await sock.profilePictureUrl(msg.key.participant ? msg.key.participant : msg.key.remoteJid, 'image');
         }
 
         if (!photoUrl) {
-            await message.reply("Não foi possível obter a foto de perfil, ela pode ser privada.").catch((erro) => {
-                console.error('Error when sending: ', erro);
-            });
+            await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+            await sock.sendMessage(msg.key.remoteJid, { text: "Não foi possível obter a foto de perfil, ela pode ser privada." }, { quoted: msg })
             return;
         }
 
-        const media = await MessageMedia.fromUrl(photoUrl, { unsafeMime: true })
-
-        await message.reply(media).catch((erro) => {
-            console.error('Error when sending: ', erro);
+        let fimg = await fetch(photoUrl).catch(async (err) => {
+            await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+            await sock.sendMessage(msg.key.remoteJid, { text: "Não foi possível obter a foto de perfil, ela pode ser privada." }, { quoted: msg })
+            return;
         });
+
+        if (!fimg || !fimg.headers.get("content-type").startsWith("image")) {
+            await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+            await sock.sendMessage(msg.key.remoteJid, { text: "Não foi possível obter a foto de perfil, ela pode ser privada." }, { quoted: msg })
+            return;
+        }
+
+        const imgbuffer = await fimg.arrayBuffer();
+
+        await sock.sendMessage(msg.key.remoteJid, { react: { text: "👍", key: msg.key } });
+        await sock.sendMessage(msg.key.remoteJid, { image: Buffer.from(imgbuffer) }, { quoted: msg });
 
     },
 
     info: {
         name: 'Obter o avatar do usuário',
         description: 'Obter o avatar do usuário.',
-        usage: 'avatar'
+        usage: ['avatar', 'usuario']
     }
 
 }

@@ -1,29 +1,24 @@
 import * as googleTTS from 'google-tts-api';
-import whatsappApi from 'whatsapp-web.js';
-const { MessageMedia } = whatsappApi;
 
 export default {
 
-    async run(client, message, args) {
+    async run(sock, msg, args) {
 
         var mensagem = args.join(' ');
 
-        const quotedMsg = await message.getQuotedMessage();
-        if (quotedMsg && message.length == 0) {
-            mensagem = quotedMsg.body;
+        if (msg.quotedMessage) {
+            mensagem = msg.quotedMessage.conversation;
         }
 
         if (mensagem.length == 0) {
-            await message.reply("Digite uma mensagem...").catch((erro) => {
-                console.error('Error when sending: ', erro);
-            });
+            await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+            await sock.sendMessage(msg.key.remoteJid, { text: "Digite uma mensagem..." }, { quoted: msg })
             return;
         }
 
         if (mensagem.length > 200) {
-            await message.reply("A mensagem deve ter no máximo 200 caracteres.").catch((erro) => {
-                console.error('Error when sending: ', erro);
-            });
+            await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+            await sock.sendMessage(msg.key.remoteJid, { text: "A mensagem deve ter no máximo 200 caracteres." }, { quoted: msg })
             return;
         }
 
@@ -34,18 +29,15 @@ export default {
             timeout: 10000,
         }).then((result) => { return result }).catch(console.error);
 
-        const media = new MessageMedia('audio/mpeg', audiobase64);
-
-        await message.reply(media).catch((erro) => {
-            console.error('Error when sending: ', erro);
-        });
+        await sock.sendMessage(msg.key.remoteJid, { react: { text: "👍", key: msg.key } });
+        await sock.sendMessage(msg.key.remoteJid, { audio: Buffer.from(audiobase64, 'base64'), mimetype: 'audio/mpeg', ptt: true }, { quoted: msg })
 
     },
 
     info: {
-        name: 'RIP',
+        name: 'SAY',
         description: 'Transcreve uma mensagem ou texto.',
-        usage: 'rip'
+        usage: ['say', 'tts', 'falar', 'ler']
     }
 
 }

@@ -3,7 +3,7 @@ import { isFloat, isInt } from "../bot.js";
 
 export default {
 
-    async run(client, message, args) {
+    async run(sock, msg, args) {
 
         var amount = 1;
 
@@ -12,16 +12,15 @@ export default {
 
         var apiResponse = await fetch("https://economia.awesomeapi.com.br/json/last/USD-BRL").then(r => { return r.json(); }).catch(function (err) { console.info(err + " url: " + url); });
 
-        await message.reply(`$${amount} equivale à ${(apiResponse.USDBRL.bid * amount).toLocaleString('pt-br', { style: 'currency', currency: 'BRL' })}.`).catch((erro) => {
-            console.error('Error when sending: ', erro);
-        });
+        await sock.sendMessage(msg.key.remoteJid, { react: { text: "💰", key: msg.key } });
+        await sock.sendMessage(msg.key.remoteJid, { text: `$${amount} equivale à ${(apiResponse.USDBRL.bid * amount).toLocaleString('pt-br', { style: 'currency', currency: 'BRL' })}.` }, { quoted: msg })
 
     },
 
     info: {
         name: 'Dólar',
         description: 'Informa a cotação do dólar.',
-        usage: 'dolar'
+        usage: ['dolar', 'cotacao', 'cotação']
     }
 
 }

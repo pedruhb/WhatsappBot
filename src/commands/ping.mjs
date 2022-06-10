@@ -1,17 +1,15 @@
 export default {
 
-    async run(client, message, args) {
-
-        message.reply(`Pong 🏓`).catch((erro) => {
-            console.error('Error when sending: ', erro);
-        });
-
+    async run(sock, msg, args) {
+        console.log(3);
+        await sock.sendMessage(msg.key.remoteJid, { react: { text: "🏓", key: msg.key } });
+        await sock.sendMessage(msg.key.remoteJid, { text: `Pong 🏓 (${Math.floor(Date.now() / 1000) - msg.messageTimestamp}s)` }, { quoted: msg })
     },
 
     info: {
         name: 'Ping',
         description: 'Ping? Pong!',
-        usage: 'ping',
+        usage: ['ping'],
         hide: true
     }
 

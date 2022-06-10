@@ -7,7 +7,7 @@ const iPhone = puppeteer.devices['iPhone 6'];
 
 const browser = await puppeteer.launch({
     executablePath: config.puppeteer.executablePath,
-    headless: false,
+    headless: true,
     userDataDir: './temp/phb-scraper/'
 });
 

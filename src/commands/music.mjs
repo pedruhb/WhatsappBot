@@ -3,7 +3,7 @@ import ytdl from 'ytdl-core';
 import ytpl from 'ytpl';
 import pkg from 'ytdl-core';
 const { validateURL } = pkg;
-import fs from 'fs';
+import fs, { writeFile } from 'fs';
 import { join } from 'path';
 import { __dirname } from '../bot.js';
 import ytsr from 'ytsr';
@@ -12,12 +12,10 @@ import fetch from 'node-fetch';
 ffmpeg.setFfmpegPath(join(__dirname, "src", "ffmpeg", "ffmpeg.exe"));
 import pkg2 from 'spotify-url-info';
 const { getDetails } = pkg2(fetch);
-import whatsappApi from 'whatsapp-web.js';
-const { MessageMedia } = whatsappApi;
 
 export default {
 
-    async run(client, message, args) {
+    async run(sock, msg, args) {
 
         var url = args.join(' ');
         var youtubeVideosUrl = [];
@@ -25,9 +23,8 @@ export default {
         const startDownloadTime = new Date().getTime();
 
         if (url.length == 0) {
-            await message.reply(`Você deve informar o nome da música ou link.`).catch((erro) => {
-                console.error('Error when sending: ', erro);
-            });
+            await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+            await sock.sendMessage(msg.key.remoteJid, { text: `Você deve informar o nome da música ou link.` }, { quoted: msg });
             return;
         }
 
@@ -45,9 +42,8 @@ export default {
             if (searchResults && searchResults.items && searchResults.items.length > 0) {
                 youtubeVideosUrl[0] = searchResults.items[0].url;
             } else {
-                await message.reply("Houve um erro ao encontrar essa música, verifique se o nome ou link é válido.").catch((erro) => {
-                    console.error('Error when sending: ', erro);
-                });
+                await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+                await sock.sendMessage(msg.key.remoteJid, { text: `Houve um erro ao encontrar essa música, verifique se o nome ou link é válido.` }, { quoted: msg });
                 return;
             }
 
@@ -58,9 +54,8 @@ export default {
             const playlist = await ytpl(url);
 
             if (!playlist || !playlist.items || playlist.items.length < 1) {
-                await message.reply(`O link da playlist informado é inválido!`).catch((erro) => {
-                    console.error('Error when sending: ', erro);
-                });
+                await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+                await sock.sendMessage(msg.key.remoteJid, { text: `O link da playlist informado é inválido!` }, { quoted: msg });
                 return;
             }
 
@@ -77,9 +72,8 @@ export default {
             await getDetails(url).then(async (music_info) => {
 
                 if (!music_info || !music_info.tracks) {
-                    await message.reply("Link da playlist inválido.").catch((erro) => {
-                        console.error('Error when sending: ', erro);
-                    });
+                    await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+                    await sock.sendMessage(msg.key.remoteJid, { text: `Link da playlist inválido.` }, { quoted: msg });
                     return;
                 }
 
@@ -106,23 +100,20 @@ export default {
         }
 
         else {
-
-            await message.reply("Link da música/playlist ou nome inválido.").catch((erro) => {
-                console.error('Error when sending: ', erro);
-            });
+            await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+            await sock.sendMessage(msg.key.remoteJid, { text: `Link da música/playlist ou nome inválido.` }, { quoted: msg });
             return;
-
         }
 
         if (isPlaylist) {
-            await message.reply(`Baixando um total de ${youtubeVideosUrl.length} músicas, isso pode demorar um pouco!`).catch((erro) => {
-                console.error('Error when sending: ', erro);
-            });
+            await sock.sendMessage(msg.key.remoteJid, { text: `Baixando um total de ${youtubeVideosUrl.length} músicas, isso pode demorar um pouco!` }, { quoted: msg });
         }
+
+        await sock.sendMessage(msg.key.remoteJid, { react: { text: "👍", key: msg.key } });
 
         for (var i = 0; i < youtubeVideosUrl.length; i++) {
 
-            var youtube_video = ytdl(youtubeVideosUrl[i], { quality: "highestaudio", filter: "audioonly" });
+            var youtube_video = await ytdl(youtubeVideosUrl[i], { quality: "highestaudio", filter: "audioonly" });
 
             var videoDetails = await new Promise((resolve) => {
                 youtube_video.on('info', (info) => {
@@ -133,80 +124,39 @@ export default {
             var videoId = videoDetails.videoId;
             var videoSeconds = videoDetails.lengthSeconds;
 
-            if (videoSeconds >= (60 * 10)) {
-                await message.reply("O vídeo ultrapassa o limite de 10 minutos.").catch((erro) => {
-                    console.error('Error when sending: ', erro);
-                });
+            if (videoSeconds >= (60 * 60)) {
+                await sock.sendMessage(msg.key.remoteJid, { text: `O vídeo "${videoId}" ultrapassa o limite de 60 minutos.` }, { quoted: msg })
                 return;
             }
 
-            var video_file_name = `${Math.floor(Math.random() * 101)}_${videoId}.mp3`;
+            const temp_name = join(__dirname, "temp", `${videoId}.mp3`);
+            const temp_name_c = join(__dirname, "temp", `c_${videoId}.mp3`);
+
+            youtube_video.pipe(fs.createWriteStream(temp_name));
 
             await new Promise((resolve) => {
-                var dest = fs.createWriteStream(join(__dirname, "temp", video_file_name));
-                youtube_video.pipe(dest);
-                dest.on("finish", function () {
+                ffmpeg(temp_name).toFormat('mp3').on('end', function () {
                     resolve();
-                });
+                }).on('error', function (error) {
+                    console.log("an error occured" + error.message);
+                }).pipe(fs.createWriteStream(temp_name_c), { end: true })
             });
 
-            if (!fs.existsSync(join(__dirname, "temp", video_file_name))) {
-                await message.reply("Houve um erro ao baixar o vídeo, tente novamente.").catch((erro) => {
-                    console.error('Error when sending: ', erro);
-                });
-                return;
-            }
+            await sock.sendMessage(msg.key.remoteJid, { audio: { url: temp_name_c }, mimetype: "audio/mpeg" }, { quoted: msg })
 
-            var fileinfo = await new Promise((resolve) => {
-                fs.stat(join(__dirname, "temp", video_file_name), (err, stats) => {
-                    if (!err)
-                        resolve(stats)
-                });
-            });
-
-            if ((fileinfo.size / (1024 * 1024)) >= 16) {
-                await message.reply("O vídeo ultrapassa o limite de 16MB estabelecido pelo WhatsApp.").catch((erro) => {
-                    console.error('Error when sending: ', erro);
-                });
-            } else {
-
-                await new Promise((resolve) => {
-                    var dest = fs.createWriteStream(join(__dirname, "temp", `converted_${video_file_name}`));
-                    ffmpeg(join(__dirname, "temp", video_file_name))
-                        .toFormat('mp3')
-                        .on('end', function () {
-                            resolve();
-                        })
-                        .on('error', function (error) {
-                            console.log("an error occured" + error.message);
-                        })
-                        .pipe(dest, { end: true })
-                });
-
-                const file_buffer = fs.readFileSync(join(__dirname, "temp", `converted_${video_file_name}`));
-                const audiobase64 = file_buffer.toString('base64');
-                const media = new MessageMedia('audio/mpeg', audiobase64);
-
-                await message.reply(media).catch((erro) => {
-                    console.error('Error when sending: ', erro);
-                });
-
-            }
-
-            fs.unlink(join(__dirname, "temp", video_file_name), function (err) {
+            fs.unlink(temp_name, function (err) {
                 if (err) return console.log(err);
             });
 
-            fs.unlink(join(__dirname, "temp", `converted_${video_file_name}`), function (err) {
+            fs.unlink(temp_name_c, function (err) {
                 if (err) return console.log(err);
             });
+
         }
 
         if (isPlaylist) {
             const finishDownloadTime = new Date((new Date().getTime() - startDownloadTime));
-            await message.reply(`O download da playlist foi concluído em ${finishDownloadTime.getMinutes()} minutos e ${finishDownloadTime.getSeconds()} segundos.`).catch((erro) => {
-                console.error('Error when sending: ', erro);
-            });
+            await sock.sendMessage(msg.key.remoteJid, { text: `O download da playlist foi concluído em ${finishDownloadTime.getMinutes()} minutos e ${finishDownloadTime.getSeconds()} segundos.` }, { quoted: msg });
         }
 
     },
@@ -214,7 +164,7 @@ export default {
     info: {
         name: 'Baixar Música',
         description: 'Baixa uma música ou playlist através do link do Youtube, Spotify ou nome.',
-        usage: 'music'
+        usage: ['music', 'musica', 'spotify']
     }
 
 }

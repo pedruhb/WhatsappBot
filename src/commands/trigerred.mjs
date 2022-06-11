@@ -22,7 +22,7 @@ export default {
                 for await (const chunk of stream) {
                     buffer = Buffer.concat([buffer, chunk])
                 }
-                userPhoto = buffer.toString('base64');
+                userPhoto = `data:image/png;base64,${buffer.toString('base64')}`
             } else {
                 await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
                 await sock.sendMessage(msg.key.remoteJid, { text: "A mensagem marcada não é uma imagem." }, { quoted: msg })
@@ -33,7 +33,7 @@ export default {
             for await (const chunk of stream) {
                 buffer = Buffer.concat([buffer, chunk])
             }
-            userPhoto = buffer.toString('base64');
+            userPhoto = `data:image/png;base64,${buffer.toString('base64')}`
         } else if (msg.message.extendedTextMessage && msg.message.extendedTextMessage.contextInfo.mentionedJid.length > 0) {
             try {
                 userPhoto = await sock.profilePictureUrl(msg.message.extendedTextMessage.contextInfo.mentionedJid[0], 'image')

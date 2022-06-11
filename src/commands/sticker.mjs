@@ -13,30 +13,32 @@ export default {
 
             let buffer = Buffer.from([])
 
-            if (msg.quotedMessage) {
-                const messageType = Object.keys(msg.quotedMessage)[0]
-                if (messageType === 'imageMessage') {
-                    const stream = await downloadContentFromMessage(msg.quotedMessage.imageMessage, 'image')
-                    for await (const chunk of stream) {
-                        buffer = Buffer.concat([buffer, chunk])
-                    }
-                } else {
-                    await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
-                    await sock.sendMessage(msg.key.remoteJid, { text: "A mensagem marcada não é uma imagem." }, { quoted: msg })
-                    return;
+            var message = msg.quotedMessage ? msg.quotedMessage : msg.message;
+
+            console.log(message);
+
+            const messageType = Object.keys(message)[0]
+
+            if (messageType === 'imageMessage') {
+
+                const stream = await downloadContentFromMessage(message.imageMessage, 'image')
+
+                for await (const chunk of stream) {
+                    buffer = Buffer.concat([buffer, chunk])
                 }
+
+            } else if (messageType === 'videoMessage' && message.videoMessage && message.videoMessage.gifPlayback) {
+
+                const stream = await downloadContentFromMessage(message.videoMessage, 'video')
+
+                for await (const chunk of stream) {
+                    buffer = Buffer.concat([buffer, chunk])
+                }
+
             } else {
-                const messageType = Object.keys(msg.message)[0]
-                if (messageType === 'imageMessage') {
-                    const stream = await downloadContentFromMessage(msg.message.imageMessage, 'image')
-                    for await (const chunk of stream) {
-                        buffer = Buffer.concat([buffer, chunk])
-                    }
-                } else {
-                    await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
-                    await sock.sendMessage(msg.key.remoteJid, { text: "Você deve enviar ou marcar uma imagem." }, { quoted: msg })
-                    return;
-                }
+                await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+                await sock.sendMessage(msg.key.remoteJid, { text: "Você deve enviar ou marcar uma imagem ou gif." }, { quoted: msg })
+                return;
             }
 
             const temp_name = join(__dirname, "temp", `sticker_c_${Math.floor(Math.random() * 9999999)}.webp`);
@@ -44,6 +46,7 @@ export default {
             await new Promise((resolve) => {
                 ffmpeg()
                     .input(Readable.from([buffer], { objectMode: false }))
+                    .withOptions(['-loop 0'])
                     .on('end', function () {
                         resolve()
                     })
@@ -71,7 +74,7 @@ export default {
 
     info: {
         name: 'Sticker',
-        description: 'Transforma uma foto/video em sticker.',
+        description: 'Transforma uma imagem ou gif em sticker.',
         usage: ['sticker', 'figurinha']
     }
 

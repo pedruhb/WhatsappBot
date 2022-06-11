@@ -2,10 +2,8 @@
 import { join } from 'path';
 import { __dirname } from '../bot.js';
 import { downloadContentFromMessage } from '@adiwajshing/baileys'
-import pkg from '@napi-rs/canvas';
-import { readFile } from 'fs';
-import fetch from 'node-fetch';
-const { createCanvas, Image } = pkg;
+import pkg from 'canvas';
+const { createCanvas, loadImage } = pkg;
 
 export default {
 
@@ -43,14 +41,8 @@ export default {
         } else if (msg.message.extendedTextMessage && msg.message.extendedTextMessage.contextInfo.mentionedJid.length > 0) {
             userPhoto = await sock.profilePictureUrl(msg.message.extendedTextMessage.contextInfo.mentionedJid[0], 'image')
             args.shift();
-            var fimg = await fetch(userPhoto);
-            var imgbuffer = await fimg.arrayBuffer();
-            userPhoto = Buffer.from(imgbuffer)
         } else {
             userPhoto = await sock.profilePictureUrl(msg.key.participant ? msg.key.participant : msg.key.remoteJid, 'image');
-            var fimg = await fetch(userPhoto);
-            var imgbuffer = await fimg.arrayBuffer();
-            userPhoto = Buffer.from(imgbuffer)
         }
 
         var nascimento = args[0];
@@ -58,36 +50,19 @@ export default {
         args.shift();
         args.shift();
         var nome = args.join(" ");
-        var lutoimg;
 
         if (!userPhoto) {
-            userPhoto = await new Promise((resolve) => readFile(join(__dirname, "src", "assets", "default.jpg"), (err, data) => {
-                if (err) {
-                    console.error(err);
-                    return;
-                }
-                resolve(data);
-            }));
+            userPhoto = join(__dirname, "src", "assets", "default.jpg");
         }
-
-        lutoimg = await new Promise((resolve) => readFile(join(__dirname, "src", "assets", "rip", "luto.png"), (err, data) => {
-            if (err) {
-                console.error(err);
-                return;
-            }
-            resolve(data);
-        }));
 
         const canvas = createCanvas(1080, 1350)
         const ctx = canvas.getContext("2d")
+        const avatar = await loadImage(userPhoto);
+        const luto = await loadImage(join(__dirname, "src", "assets", "rip", "luto.png"));
         ctx.fillStyle = "white";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "black";
-        const avatar = new Image()
-        avatar.src = userPhoto;
         ctx.drawImage(avatar, 10, 135, 1060, canvas.width)
-        const luto = new Image()
-        luto.src = lutoimg;
         ctx.font = '70px sans-serif';
         ctx.textBaseline = 'middle';
         ctx.textAlign = 'center';

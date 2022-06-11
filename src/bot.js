@@ -51,12 +51,7 @@ const startSock = async () => {
         logger,
         printQRInTerminal: true,
         auth: state,
-        msgRetryCounterMap,
-        getMessage: async key => {
-            return {
-                conversation: 'hello'
-            }
-        }
+        msgRetryCounterMap
     });
 
     store?.bind(sock.ev);

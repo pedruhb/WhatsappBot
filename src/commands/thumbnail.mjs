@@ -1,5 +1,4 @@
 import fetch from 'node-fetch';
-import Sharp from 'sharp';
 import ytdl from 'ytdl-core';
 const { validateURL } = ytdl;
 
@@ -22,32 +21,12 @@ export default {
         var thumb = youtube_video.videoDetails.thumbnails[(youtube_video.videoDetails.thumbnails.length - 1)];
 
         if (!thumb || !thumb.url) {
-            await sock.sendMessage(msg.key.remoteJid, { text: "Erro ao obter thumbnail." }, { quoted: msg })
+            await sock.sendMessage(msg.key.remoteJid, { text: "Erro ao obter thumbnail." }, { quoted: msg });
             return;
         }
-
-        let fimg = await fetch(thumb.url).catch(async (err) => {
-            await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
-            await sock.sendMessage(msg.key.remoteJid, { text: "Não foi possível obter a thumbnail." }, { quoted: msg })
-            return;
-        });
-
-        if (!fimg || !fimg.headers.get("content-type").startsWith("image")) {
-            await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
-            await sock.sendMessage(msg.key.remoteJid, { text: "Não foi possível obter a thumbnail." }, { quoted: msg })
-            return;
-        }
-
-        const imgbuffer = await fimg.arrayBuffer();
-
-        const sticker_buffer = await Sharp(Buffer.from(imgbuffer)).png().toBuffer().catch(async err => {
-            console.log("Sticker Error (Sharp) ", err);
-            await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
-            await sock.sendMessage(msg.key.remoteJid, { text: "Não foi possível obter a thumbnail." }, { quoted: msg })
-        });
 
         await sock.sendMessage(msg.key.remoteJid, { react: { text: "👍", key: msg.key } });
-        await sock.sendMessage(msg.key.remoteJid, { image: sticker_buffer });
+        await sock.sendMessage(msg.key.remoteJid, { image: { url: thumb.url } }, { quoted: msg });
 
     },
 

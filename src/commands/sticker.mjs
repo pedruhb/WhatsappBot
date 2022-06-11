@@ -1,5 +1,9 @@
 import { downloadContentFromMessage } from '@adiwajshing/baileys'
-import sharp from 'sharp';
+import ffmpeg from 'fluent-ffmpeg';
+import { unlink } from 'fs';
+import { join } from 'path';
+import { Readable } from "stream"
+import { __dirname } from '../bot.js';
 
 export default {
 
@@ -35,14 +39,27 @@ export default {
                 }
             }
 
-            const sticker_buffer = await sharp(buffer).webp().toBuffer().catch(async err => {
-                console.log("Sticker Error (Sharp) ", err);
-                await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
-                await sock.sendMessage(msg.key.remoteJid, { text: "Erro ao gerar sticker!" }, { quoted: msg })
+            const temp_name = join(__dirname, "temp", `sticker_c_${Math.floor(Math.random() * 9999999)}.webp`);
+
+            await new Promise((resolve) => {
+                ffmpeg()
+                    .input(Readable.from([buffer], { objectMode: false }))
+                    .on('end', function () {
+                        resolve()
+                    })
+                    .on('error', function (error) {
+                        console.log("an error occured" + error.message);
+                    })
+                    .toFormat("webp")
+                    .saveToFile(temp_name)
             });
 
             await sock.sendMessage(msg.key.remoteJid, { react: { text: "👍", key: msg.key } });
-            await sock.sendMessage(msg.key.remoteJid, { sticker: sticker_buffer }, { quoted: msg })
+            await sock.sendMessage(msg.key.remoteJid, { sticker: { url: temp_name } }, { quoted: msg })
+
+            unlink(temp_name, function (err) {
+                if (err) return console.log(err);
+            });
 
         } catch (err) {
             console.log("Sticker Error", err);

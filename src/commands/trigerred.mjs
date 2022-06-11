@@ -35,9 +35,17 @@ export default {
             }
             userPhoto = buffer.toString('base64');
         } else if (msg.message.extendedTextMessage && msg.message.extendedTextMessage.contextInfo.mentionedJid.length > 0) {
-            userPhoto = await sock.profilePictureUrl(msg.message.extendedTextMessage.contextInfo.mentionedJid[0], 'image')
+            try {
+                userPhoto = await sock.profilePictureUrl(msg.message.extendedTextMessage.contextInfo.mentionedJid[0], 'image')
+            } catch (err) {
+                /// Foto privada
+            }
         } else {
-            userPhoto = await sock.profilePictureUrl(msg.key.participant ? msg.key.participant : msg.key.remoteJid, 'image');
+            try {
+                userPhoto = await sock.profilePictureUrl(msg.key.participant ? msg.key.participant : msg.key.remoteJid, 'image');
+            } catch (err) {
+                /// Foto privada
+            }
         }
 
         if (!userPhoto) {
@@ -48,20 +56,19 @@ export default {
 
         await sock.sendMessage(msg.key.remoteJid, { react: { text: "👍", key: msg.key } });
 
+        const temp_name = join(__dirname, "temp", `trigger_${Math.floor(Math.random() * 9999999)}.gif`);
+        var temp_name_c;
+
+        writeFileSync(temp_name, image);
+
         if (args.join(" ").includes("sticker") || args.join(" ").includes("figurinha")) {
 
-            await sock.sendMessage(msg.key.remoteJid, { sticker: image }, { quoted: msg })
-
-        } else {
-
-            const temp_name = join(__dirname, "temp", `trigger_${Math.floor(Math.random() * 9999999)}.mp4`);
-            const temp_namge = join(__dirname, "temp", `trigger_${Math.floor(Math.random() * 9999999)}.gif`);
-
-            writeFileSync(temp_namge, image);
+            temp_name_c = join(__dirname, "temp", `trigger_${Math.floor(Math.random() * 9999999)}.webp`);
 
             await new Promise((resolve) => {
                 ffmpeg()
-                    .input(temp_namge)
+                    .input(temp_name)
+                    .withOptions(['-loop 0'])
                     .on('end', function () {
                         resolve()
                     })
@@ -69,19 +76,39 @@ export default {
                         console.log("an error occured" + error.message);
                     })
                     .outputOptions(["-pix_fmt yuv420p"])
-                    .saveToFile(temp_name)
+                    .saveToFile(temp_name_c)
             });
 
-            await sock.sendMessage(msg.key.remoteJid, { video: { url: temp_name }, gifPlayback: true }, { quoted: msg })
+            await sock.sendMessage(msg.key.remoteJid, { sticker: { url: temp_name_c } }, { quoted: msg })
 
-            unlink(temp_name, function (err) {
-                if (err) return console.log(err);
+        } else {
+
+            temp_name_c = join(__dirname, "temp", `trigger_${Math.floor(Math.random() * 9999999)}.mp4`);
+
+            await new Promise((resolve) => {
+                ffmpeg()
+                    .input(temp_name)
+                    .on('end', function () {
+                        resolve()
+                    })
+                    .on('error', function (error) {
+                        console.log("an error occured" + error.message);
+                    })
+                    .outputOptions(["-pix_fmt yuv420p"])
+                    .saveToFile(temp_name_c)
             });
 
-            unlink(temp_namge, function (err) {
-                if (err) return console.log(err);
-            });
+            await sock.sendMessage(msg.key.remoteJid, { video: { url: temp_name_c }, gifPlayback: true }, { quoted: msg })
+
         }
+
+        unlink(temp_name, function (err) {
+            if (err) return console.log(err);
+        });
+
+        unlink(temp_name_c, function (err) {
+            if (err) return console.log(err);
+        });
 
     },
 

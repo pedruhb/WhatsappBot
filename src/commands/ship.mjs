@@ -27,8 +27,12 @@ export default {
             return;
         }
 
-        var user1Photo = await sock.profilePictureUrl(user1, 'image');
-        var user2Photo = await sock.profilePictureUrl(user2, 'image');
+        try {
+            var user1Photo = await sock.profilePictureUrl(user1, 'image');
+            var user2Photo = await sock.profilePictureUrl(user2, 'image');
+        } catch (err) {
+            /// Foto privada
+        }
 
         if (!user1Photo) {
             user1Photo = join(__dirname, "src", "assets", "default.jpg");

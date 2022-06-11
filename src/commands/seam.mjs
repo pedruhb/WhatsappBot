@@ -12,31 +12,37 @@ export default {
 
         var userPhoto;
         let buffer = Buffer.from([]);
-        const messageType = Object.keys(msg.message)[0];
 
-        if (msg.quotedMessage) {
-            const messageType = Object.keys(msg.quotedMessage)[0]
-            if (messageType === 'imageMessage') {
-                const stream = await downloadContentFromMessage(msg.quotedMessage.imageMessage, 'image')
+        try {
+
+            const messageType = Object.keys(msg.message)[0];
+
+            if (msg.quotedMessage) {
+                const messageType = Object.keys(msg.quotedMessage)[0]
+                if (messageType === 'imageMessage') {
+                    const stream = await downloadContentFromMessage(msg.quotedMessage.imageMessage, 'image')
+                    for await (const chunk of stream) {
+                        buffer = Buffer.concat([buffer, chunk])
+                    }
+                    userPhoto = buffer;
+                } else {
+                    await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+                    await sock.sendMessage(msg.key.remoteJid, { text: "A mensagem marcada não é uma imagem." }, { quoted: msg })
+                    return;
+                }
+            } else if (messageType === 'imageMessage') {
+                const stream = await downloadContentFromMessage(msg.message.imageMessage, 'image')
                 for await (const chunk of stream) {
                     buffer = Buffer.concat([buffer, chunk])
                 }
                 userPhoto = buffer;
+            } else if (msg.message.extendedTextMessage && msg.message.extendedTextMessage.contextInfo.mentionedJid.length > 0) {
+                userPhoto = await sock.profilePictureUrl(msg.message.extendedTextMessage.contextInfo.mentionedJid[0], 'image')
             } else {
-                await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
-                await sock.sendMessage(msg.key.remoteJid, { text: "A mensagem marcada não é uma imagem." }, { quoted: msg })
-                return;
+                userPhoto = await sock.profilePictureUrl(msg.key.participant ? msg.key.participant : msg.key.remoteJid, 'image');
             }
-        } else if (messageType === 'imageMessage') {
-            const stream = await downloadContentFromMessage(msg.message.imageMessage, 'image')
-            for await (const chunk of stream) {
-                buffer = Buffer.concat([buffer, chunk])
-            }
-            userPhoto = buffer;
-        } else if (msg.message.extendedTextMessage && msg.message.extendedTextMessage.contextInfo.mentionedJid.length > 0) {
-            userPhoto = await sock.profilePictureUrl(msg.message.extendedTextMessage.contextInfo.mentionedJid[0], 'image')
-        } else {
-            userPhoto = await sock.profilePictureUrl(msg.key.participant ? msg.key.participant : msg.key.remoteJid, 'image');
+        } catch (err) {
+            /// Foto privada
         }
 
         if (!userPhoto) {

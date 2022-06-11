@@ -19,31 +19,36 @@ export default {
         let buffer = Buffer.from([]);
         const messageType = Object.keys(msg.message)[0];
 
-        if (msg.quotedMessage) {
-            const messageType = Object.keys(msg.quotedMessage)[0]
-            if (messageType === 'imageMessage') {
-                const stream = await downloadContentFromMessage(msg.quotedMessage.imageMessage, 'image')
+        try {
+            if (msg.quotedMessage) {
+                const messageType = Object.keys(msg.quotedMessage)[0]
+                if (messageType === 'imageMessage') {
+                    const stream = await downloadContentFromMessage(msg.quotedMessage.imageMessage, 'image')
+                    for await (const chunk of stream) {
+                        buffer = Buffer.concat([buffer, chunk])
+                    }
+                    userPhoto = buffer.toString('base64');
+                } else {
+                    await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+                    await sock.sendMessage(msg.key.remoteJid, { text: "A mensagem marcada não é uma imagem." }, { quoted: msg })
+                    return;
+                }
+            } else if (messageType === 'imageMessage') {
+                const stream = await downloadContentFromMessage(msg.message.imageMessage, 'image')
                 for await (const chunk of stream) {
                     buffer = Buffer.concat([buffer, chunk])
                 }
                 userPhoto = buffer.toString('base64');
+            } else if (msg.message.extendedTextMessage && msg.message.extendedTextMessage.contextInfo.mentionedJid.length > 0) {
+                userPhoto = await sock.profilePictureUrl(msg.message.extendedTextMessage.contextInfo.mentionedJid[0], 'image')
+                args.shift();
             } else {
-                await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
-                await sock.sendMessage(msg.key.remoteJid, { text: "A mensagem marcada não é uma imagem." }, { quoted: msg })
-                return;
+                userPhoto = await sock.profilePictureUrl(msg.key.participant ? msg.key.participant : msg.key.remoteJid, 'image');
             }
-        } else if (messageType === 'imageMessage') {
-            const stream = await downloadContentFromMessage(msg.message.imageMessage, 'image')
-            for await (const chunk of stream) {
-                buffer = Buffer.concat([buffer, chunk])
-            }
-            userPhoto = buffer.toString('base64');
-        } else if (msg.message.extendedTextMessage && msg.message.extendedTextMessage.contextInfo.mentionedJid.length > 0) {
-            userPhoto = await sock.profilePictureUrl(msg.message.extendedTextMessage.contextInfo.mentionedJid[0], 'image')
-            args.shift();
-        } else {
-            userPhoto = await sock.profilePictureUrl(msg.key.participant ? msg.key.participant : msg.key.remoteJid, 'image');
+        } catch (err) {
+            /// Foto privada
         }
+
 
         var nascimento = args[0];
         var morte = args[1];

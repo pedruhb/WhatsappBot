@@ -5,11 +5,15 @@ export default {
     async run(sock, msg, args) {
 
         var photoUrl;
-
-        if (msg.message.extendedTextMessage && msg.message.extendedTextMessage.contextInfo.mentionedJid.length > 0) {
-            photoUrl = await sock.profilePictureUrl(msg.message.extendedTextMessage.contextInfo.mentionedJid[0], 'image')
-        } else {
-            photoUrl = await sock.profilePictureUrl(msg.key.participant ? msg.key.participant : msg.key.remoteJid, 'image');
+        
+        try {
+            if (msg.message.extendedTextMessage && msg.message.extendedTextMessage.contextInfo.mentionedJid.length > 0) {
+                photoUrl = await sock.profilePictureUrl(msg.message.extendedTextMessage.contextInfo.mentionedJid[0], 'image')
+            } else {
+                photoUrl = await sock.profilePictureUrl(msg.key.participant ? msg.key.participant : msg.key.remoteJid, 'image');
+            }
+        } catch (err) {
+            /// Foto privada
         }
 
         if (!photoUrl) {

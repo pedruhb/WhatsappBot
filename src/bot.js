@@ -90,19 +90,18 @@ const startSock = async () => {
         }
 
         /* Groups */
-        else if (msgtext.startsWith("https://chat.whatsapp.com/")) {
-            if (/https:\/\/chat.whatsapp\.com\/[\w.-]+/g.test(msgtext)) {
-                try {
-                    var regex = /https:\/\/chat.whatsapp\.com\/[\w.-]+/g.exec(msgtext);
-                    for (var i = 0; i < regex.length; i++) {
-                        await sock.groupAcceptInvite(regex[i].replace("https://chat.whatsapp.com/", "")).catch((err) => {
-                        })
-                    }
-                } catch (err) {
-                    console.log(err);
+        else if (/https:\/\/chat.whatsapp\.com\/[\w.-]+/g.test(msgtext)) {
+            try {
+                var regex = /https:\/\/chat.whatsapp\.com\/[\w.-]+/g.exec(msgtext);
+                for (var i = 0; i < regex.length; i++) {
+                    await sock.groupAcceptInvite(regex[i].replace("https://chat.whatsapp.com/", "")).catch((err) => {
+                    })
                 }
+            } catch (err) {
+                console.log(err);
             }
         }
+
 
         /* Tiktok Downloader */
         else if (msgtext.startsWith("https://www.tiktok.com") || msgtext.startsWith("https://vm.tiktok.com")) {

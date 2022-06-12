@@ -3,7 +3,7 @@ import ytdl from 'ytdl-core';
 import ytpl from 'ytpl';
 import pkg from 'ytdl-core';
 const { validateURL } = pkg;
-import fs, { writeFile } from 'fs';
+import fs, { existsSync, writeFile } from 'fs';
 import { join } from 'path';
 import { __dirname } from '../bot.js';
 import ytsr from 'ytsr';
@@ -113,45 +113,72 @@ export default {
 
         for (var i = 0; i < youtubeVideosUrl.length; i++) {
 
-            var youtube_video = await ytdl(youtubeVideosUrl[i], { quality: "highestaudio", filter: "audioonly" });
+            try {
 
-            var videoDetails = await new Promise((resolve) => {
-                youtube_video.on('info', (info) => {
-                    resolve(info.videoDetails);
+                var youtube_video = await ytdl(youtubeVideosUrl[i], { quality: "highestaudio", filter: "audioonly" });
+
+                var videoDetails = await new Promise((resolve) => {
+                    youtube_video.on('info', (info) => {
+                        resolve(info.videoDetails);
+                    });
                 });
-            });
 
-            var videoId = videoDetails.videoId;
-            var videoSeconds = videoDetails.lengthSeconds;
+                var videoId = videoDetails.videoId;
+                var videoSeconds = videoDetails.lengthSeconds;
 
-            if (videoSeconds >= (60 * 60)) {
-                await sock.sendMessage(msg.key.remoteJid, { text: `O vídeo "${videoId}" ultrapassa o limite de 60 minutos.` }, { quoted: msg })
-                return;
+                if (videoSeconds >= (60 * 60)) {
+                    await sock.sendMessage(msg.key.remoteJid, { text: `O vídeo "${videoId}" ultrapassa o limite de 60 minutos.` }, { quoted: msg })
+                    return;
+                }
+
+                const temp_name = join(__dirname, "temp", `${videoId}.mp4`);
+                const temp_name_c = join(__dirname, "temp", `c_${videoId}.mp3`);
+
+                await new Promise((resolve, reject) => {
+
+                    var writeStream = youtube_video.pipe(fs.createWriteStream(temp_name));
+
+                    writeStream.on('finish', () => {
+                        console.log('wrote all data to file');
+                        resolve()
+                    });
+
+                    writeStream.on("error", () => {
+                        reject();
+                    })
+
+                });
+
+                await new Promise((resolve, reject) => {
+
+                    ffmpeg()
+                        .input(temp_name)
+                        .on('end', function () {
+                            resolve();
+                        })
+                        .on('error', function (error) {
+                            console.log("an error occured" + error.message);
+                            reject();
+                        })
+                        .saveToFile(temp_name_c)
+
+                });
+
+                if (existsSync(temp_name_c)) {
+                    await sock.sendMessage(msg.key.remoteJid, { audio: { url: temp_name_c }, mimetype: "audio/mpeg" }, { quoted: msg })
+                    fs.unlink(temp_name_c, function (err) {
+                        if (err) return console.log(err);
+                    });
+                }
+
+                fs.unlink(temp_name, function (err) {
+                    if (err) return console.log(err);
+                });
+
             }
-
-            const temp_name = join(__dirname, "temp", `${videoId}.mp3`);
-            const temp_name_c = join(__dirname, "temp", `c_${videoId}.mp3`);
-
-            youtube_video.pipe(fs.createWriteStream(temp_name));
-
-            await new Promise((resolve) => {
-                ffmpeg(temp_name).toFormat('mp3').on('end', function () {
-                    resolve();
-                }).on('error', function (error) {
-                    console.log("an error occured" + error.message);
-                }).pipe(fs.createWriteStream(temp_name_c), { end: true })
-            });
-
-            await sock.sendMessage(msg.key.remoteJid, { audio: { url: temp_name_c }, mimetype: "audio/mpeg" }, { quoted: msg })
-
-            fs.unlink(temp_name, function (err) {
-                if (err) return console.log(err);
-            });
-
-            fs.unlink(temp_name_c, function (err) {
-                if (err) return console.log(err);
-            });
-
+            catch (err) {
+                await sock.sendMessage(msg.key.remoteJid, { text: `Erro ao baixar música "${videoId}".` }, { quoted: msg })
+            }
         }
 
         if (isPlaylist) {

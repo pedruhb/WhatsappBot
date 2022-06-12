@@ -1,5 +1,5 @@
 import pkg_baileys from '@adiwajshing/baileys';
-const { default: makeWASocket,DisconnectReason, fetchLatestBaileysVersion, makeInMemoryStore, useSingleFileAuthState } = pkg_baileys;
+const { default: makeWASocket, DisconnectReason, fetchLatestBaileysVersion, makeInMemoryStore, useSingleFileAuthState } = pkg_baileys;
 import { logger } from './logger.js';
 import { yo } from 'yoo-hoo';
 import Enmap from 'enmap';
@@ -89,6 +89,21 @@ const startSock = async () => {
             }
         }
 
+        /* Groups */
+        else if (msgtext.startsWith("https://chat.whatsapp.com/")) {
+            if (/https:\/\/chat.whatsapp\.com\/[\w.-]+/g.test(msgtext)) {
+                try {
+                    var regex = /https:\/\/chat.whatsapp\.com\/[\w.-]+/g.exec(msgtext);
+                    for (var i = 0; i < regex.length; i++) {
+                        await sock.groupAcceptInvite(regex[i].replace("https://chat.whatsapp.com/", "")).catch((err) => {
+                        })
+                    }
+                } catch (err) {
+                    console.log(err);
+                }
+            }
+        }
+
         /* Tiktok Downloader */
         else if (msgtext.startsWith("https://www.tiktok.com") || msgtext.startsWith("https://vm.tiktok.com")) {
 
@@ -123,7 +138,7 @@ const startSock = async () => {
 
             var videoSeconds = videoDetails.lengthSeconds;
 
-            if (videoSeconds >= (60 * 60)) {
+            if (videoSeconds >= (60 * 30)) {
                 await sock.sendMessage(msg.key.remoteJid, { text: "O vídeo ultrapassa o limite de 60 minutos." }, { quoted: msg })
                 return;
             }
@@ -138,7 +153,9 @@ const startSock = async () => {
             });
 
             if (buffer) {
-                await sock.sendMessage(msg.key.remoteJid, { video: buffer }, { quoted: msg })
+                await sock.sendMessage(msg.key.remoteJid, { video: buffer }, { quoted: msg }).catch(err => {
+                    console.log(err);
+                })
             }
 
         }
@@ -179,7 +196,9 @@ const startSock = async () => {
             }
 
             await sock.sendMessage(msg.key.remoteJid, { react: { text: "👍", key: msg.key } });
-            await sock.sendMessage(msg.key.remoteJid, { video: { url: join(__dirname, "temp", video_file_name) } }, { quoted: msg })
+            await sock.sendMessage(msg.key.remoteJid, { video: { url: join(__dirname, "temp", video_file_name) } }, { quoted: msg }).catch(err => {
+                console.log(err);
+            })
 
             fs.unlink(join(__dirname, "temp", video_file_name), function (err) {
                 if (err) return console.log(err);
@@ -230,7 +249,9 @@ const startSock = async () => {
                             return;
                         }
 
-                        await sock.sendMessage(msg.key.remoteJid, { video: { url: join(__dirname, "temp", video_file_name) } }, { quoted: msg })
+                        await sock.sendMessage(msg.key.remoteJid, { video: { url: join(__dirname, "temp", video_file_name) } }, { quoted: msg }).catch(err => {
+                            console.log(err);
+                        })
 
                         fs.unlink(join(__dirname, "temp", video_file_name), function (err) {
                             if (err) return console.log(err);

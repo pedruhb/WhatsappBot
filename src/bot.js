@@ -58,213 +58,216 @@ const startSock = async () => {
 
     sock.ev.on('messages.upsert', async m => {
 
-        const msg = m.messages[0];
+        try {
 
-        if (msg.key.fromMe || !msg.message || !msg.message.conversation && !msg.message.extendedTextMessage && !msg.message.imageMessage && !msg.message.listResponseMessage) return;
+            const msg = m.messages[0];
 
-        if (msg.message.extendedTextMessage && msg.message.extendedTextMessage.contextInfo && msg.message.extendedTextMessage.contextInfo.quotedMessage)
-            msg.quotedMessage = msg.message.extendedTextMessage.contextInfo.quotedMessage;
+            if (msg.key.fromMe || !msg.message || !msg.message.conversation && !msg.message.extendedTextMessage && !msg.message.imageMessage && !msg.message.listResponseMessage) return;
 
-        var msgtext;
-        if (msg.message.conversation) {
-            msgtext = msg.message.conversation;
-        } else if (msg.message.extendedTextMessage && msg.message.extendedTextMessage.text) {
-            msgtext = msg.message.extendedTextMessage.text;
-        } else if (msg.message.imageMessage && msg.message.imageMessage.caption) {
-            msgtext = msg.message.imageMessage.caption;
-        } else if (msg.message.listResponseMessage) {
-            msgtext = msg.message.listResponseMessage.title;
-        } else {
-            return;
-        }
+            if (msg.message.extendedTextMessage && msg.message.extendedTextMessage.contextInfo && msg.message.extendedTextMessage.contextInfo.quotedMessage)
+                msg.quotedMessage = msg.message.extendedTextMessage.contextInfo.quotedMessage;
 
-        await sock.sendReadReceipt(msg.key.remoteJid, msg.key.participant, [msg.key.id])
-
-        if (msgtext && msgtext.startsWith(config.prefix)) {
-            const args = msgtext.slice(`${config.prefix}`.length).trim().split(/ +/g)
-            const command = args.shift().toLowerCase();
-            const cmd = commands.get(command);
-            if (cmd) {
-                cmd.run(sock, msg, args);
+            var msgtext;
+            if (msg.message.conversation) {
+                msgtext = msg.message.conversation;
+            } else if (msg.message.extendedTextMessage && msg.message.extendedTextMessage.text) {
+                msgtext = msg.message.extendedTextMessage.text;
+            } else if (msg.message.imageMessage && msg.message.imageMessage.caption) {
+                msgtext = msg.message.imageMessage.caption;
+            } else if (msg.message.listResponseMessage) {
+                msgtext = msg.message.listResponseMessage.title;
+            } else {
+                return;
             }
-        }
 
-        /* Groups */
-        else if (/https:\/\/chat.whatsapp\.com\/[\w.-]+/g.test(msgtext)) {
-            try {
-                var regex = /https:\/\/chat.whatsapp\.com\/[\w.-]+/g.exec(msgtext);
-                for (var i = 0; i < regex.length; i++) {
-                    await sock.groupAcceptInvite(regex[i].replace("https://chat.whatsapp.com/", "")).catch((err) => {
+            //await sock.sendReadReceipt(msg.key.remoteJid, msg.key.participant, [msg.key.id])
+
+            if (msgtext && msgtext.startsWith(config.prefix)) {
+                const args = msgtext.slice(`${config.prefix}`.length).trim().split(/ +/g)
+                const command = args.shift().toLowerCase();
+                const cmd = commands.get(command);
+                if (cmd) {
+                    cmd.run(sock, msg, args);
+                }
+            }
+
+            /* Groups */
+            /*else if (/https:\/\/chat.whatsapp\.com\/[\w.-]+/g.test(msgtext)) {
+                try {
+                    var regex = /https:\/\/chat.whatsapp\.com\/[\w.-]+/g.exec(msgtext);
+                    for (var i = 0; i < regex.length; i++) {
+                        await sock.groupAcceptInvite(regex[i].replace("https://chat.whatsapp.com/", "")).catch((err) => {
+                        })
+                    }
+                } catch (err) {
+                    console.log(err);
+                }
+            }*/
+
+            /* Tiktok Downloader */
+            else if (msgtext.startsWith("https://www.tiktok.com") || msgtext.startsWith("https://vm.tiktok.com")) {
+
+                var videoUrl = msgtext;
+
+                if (msgtext.startsWith("https://vm.tiktok.com")) {
+                    videoUrl = await fetch(msgtext, { redirect: 'follow' }).then(r => { return r.url; }).catch(function (err) { console.info(err + " url: " + url); });
+                }
+
+                try {
+                    var videoMeta = await TikTokScraper.getVideoMeta(videoUrl)
+                    await sock.sendMessage(msg.key.remoteJid, { react: { text: "👍", key: msg.key } });
+                    await sock.sendMessage(msg.key.remoteJid, { video: { url: videoMeta.collector[0].videoUrl } }, { quoted: msg })
+                } catch (error) {
+                    await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+                    await sock.sendMessage(msg.key.remoteJid, { text: "Houve um erro ao baixar o vídeo, tente novamente." }, { quoted: msg })
+                    return;
+                }
+
+            }
+
+            /* Youtube Downloader */
+            else if (msgtext.startsWith("https://www.youtube.com/watch") || msgtext.startsWith("https://youtu.be/")) {
+
+                var youtube_video = ytdl(msgtext);
+
+                var videoDetails = await new Promise((resolve) => {
+                    youtube_video.on('info', (info) => {
+                        resolve(info.videoDetails);
+                    });
+                });
+
+                var videoSeconds = videoDetails.lengthSeconds;
+
+                if (videoSeconds >= (60 * 30)) {
+                    await sock.sendMessage(msg.key.remoteJid, { text: "O vídeo ultrapassa o limite de 60 minutos." }, { quoted: msg })
+                    return;
+                }
+
+                await sock.sendMessage(msg.key.remoteJid, { react: { text: "👍", key: msg.key } });
+
+                var buffer = await new Promise((resolve, reject) => {
+                    const _buf = [];
+                    youtube_video.on("data", (chunk) => _buf.push(chunk));
+                    youtube_video.on("end", () => resolve(Buffer.concat(_buf)));
+                    youtube_video.on("error", (err) => reject(err));
+                });
+
+                if (buffer) {
+                    await sock.sendMessage(msg.key.remoteJid, { video: buffer }, { quoted: msg }).catch(err => {
+                        console.log(err);
                     })
                 }
-            } catch (err) {
-                console.log(err);
-            }
-        }
 
-
-        /* Tiktok Downloader */
-        else if (msgtext.startsWith("https://www.tiktok.com") || msgtext.startsWith("https://vm.tiktok.com")) {
-
-            var videoUrl = msgtext;
-
-            if (msgtext.startsWith("https://vm.tiktok.com")) {
-                videoUrl = await fetch(msgtext, { redirect: 'follow' }).then(r => { return r.url; }).catch(function (err) { console.info(err + " url: " + url); });
             }
 
-            try {
-                var videoMeta = await TikTokScraper.getVideoMeta(videoUrl)
-                await sock.sendMessage(msg.key.remoteJid, { react: { text: "👍", key: msg.key } });
-                await sock.sendMessage(msg.key.remoteJid, { video: { url: videoMeta.collector[0].videoUrl } }, { quoted: msg })
-            } catch (error) {
-                await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
-                await sock.sendMessage(msg.key.remoteJid, { text: "Houve um erro ao baixar o vídeo, tente novamente." }, { quoted: msg })
-                return;
-            }
+            /* Facebook Downloader */
+            else if (msgtext.includes("facebook.com") || msgtext.includes("fb.com") || msgtext.includes("fb.watch")) {
 
-        }
+                var facebook = await phbscraper.facebook(msgtext);
+                if (!facebook.success) {
+                    await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+                    await sock.sendMessage(msg.key.remoteJid, { text: "Houve um erro ao baixar o vídeo, tente novamente." }, { quoted: msg })
+                    return;
+                }
 
-        /* Youtube Downloader */
-        else if (msgtext.startsWith("https://www.youtube.com/watch") || msgtext.startsWith("https://youtu.be/")) {
+                var video_file_name = `${Math.floor(Math.random() * 101)}_${msg.key.remoteJid}.mp4`;
 
-            var youtube_video = ytdl(msgtext);
-
-            var videoDetails = await new Promise((resolve) => {
-                youtube_video.on('info', (info) => {
-                    resolve(info.videoDetails);
+                await fetch(facebook.url).then(async (res) => {
+                    await new Promise((resolve, reject) => {
+                        var dest = fs.createWriteStream(join(__dirname, "temp", video_file_name))
+                        dest.on('error', function (err) {
+                            console.log(err);
+                        });
+                        res.body.pipe(dest);
+                        res.body.on("error", (err) => {
+                            console.log(err);
+                            reject(err);
+                        });
+                        dest.on("finish", function () {
+                            resolve();
+                        });
+                    });
                 });
-            });
 
-            var videoSeconds = videoDetails.lengthSeconds;
+                if (!fs.existsSync(join(__dirname, "temp", video_file_name))) {
+                    await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+                    await sock.sendMessage(msg.key.remoteJid, { text: "Houve um erro ao baixar o vídeo, tente novamente." }, { quoted: msg })
+                    return;
+                }
 
-            if (videoSeconds >= (60 * 30)) {
-                await sock.sendMessage(msg.key.remoteJid, { text: "O vídeo ultrapassa o limite de 60 minutos." }, { quoted: msg })
-                return;
-            }
-
-            await sock.sendMessage(msg.key.remoteJid, { react: { text: "👍", key: msg.key } });
-
-            var buffer = await new Promise((resolve, reject) => {
-                const _buf = [];
-                youtube_video.on("data", (chunk) => _buf.push(chunk));
-                youtube_video.on("end", () => resolve(Buffer.concat(_buf)));
-                youtube_video.on("error", (err) => reject(err));
-            });
-
-            if (buffer) {
-                await sock.sendMessage(msg.key.remoteJid, { video: buffer }, { quoted: msg }).catch(err => {
+                await sock.sendMessage(msg.key.remoteJid, { react: { text: "👍", key: msg.key } });
+                await sock.sendMessage(msg.key.remoteJid, { video: { url: join(__dirname, "temp", video_file_name) } }, { quoted: msg }).catch(err => {
                     console.log(err);
                 })
-            }
 
-        }
-
-        /* Facebook Downloader */
-        else if (msgtext.includes("facebook.com") || msgtext.includes("fb.com") || msgtext.includes("fb.watch")) {
-
-            var facebook = await phbscraper.facebook(msgtext);
-            if (!facebook.success) {
-                await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
-                await sock.sendMessage(msg.key.remoteJid, { text: "Houve um erro ao baixar o vídeo, tente novamente." }, { quoted: msg })
-                return;
-            }
-
-            var video_file_name = `${Math.floor(Math.random() * 101)}_${msg.key.remoteJid}.mp4`;
-
-            await fetch(facebook.url).then(async (res) => {
-                await new Promise((resolve, reject) => {
-                    var dest = fs.createWriteStream(join(__dirname, "temp", video_file_name))
-                    dest.on('error', function (err) {
-                        console.log(err);
-                    });
-                    res.body.pipe(dest);
-                    res.body.on("error", (err) => {
-                        console.log(err);
-                        reject(err);
-                    });
-                    dest.on("finish", function () {
-                        resolve();
-                    });
+                fs.unlink(join(__dirname, "temp", video_file_name), function (err) {
+                    if (err) return console.log(err);
                 });
-            });
 
-            if (!fs.existsSync(join(__dirname, "temp", video_file_name))) {
-                await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
-                await sock.sendMessage(msg.key.remoteJid, { text: "Houve um erro ao baixar o vídeo, tente novamente." }, { quoted: msg })
-                return;
             }
 
-            await sock.sendMessage(msg.key.remoteJid, { react: { text: "👍", key: msg.key } });
-            await sock.sendMessage(msg.key.remoteJid, { video: { url: join(__dirname, "temp", video_file_name) } }, { quoted: msg }).catch(err => {
-                console.log(err);
-            })
+            /* Instagram Downloader */
+            else if (msgtext.startsWith("https://www.instagram.com/")) {
 
-            fs.unlink(join(__dirname, "temp", video_file_name), function (err) {
-                if (err) return console.log(err);
-            });
+                var instagram = await phbscraper.instagram(msgtext);
 
-        }
+                if (!instagram || !instagram.url || !instagram.url[0]) {
+                    await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
+                    await sock.sendMessage(msg.key.remoteJid, { text: "Houve um erro ao baixar o vídeo, tente novamente." }, { quoted: msg })
+                    return;
+                }
 
-        /* Instagram Downloader */
-        else if (msgtext.startsWith("https://www.instagram.com/")) {
+                for (var i = 0; i < instagram.url.length; i++) {
 
-            var instagram = await phbscraper.instagram(msgtext);
+                    var i_url = instagram.url[i];
 
-            if (!instagram || !instagram.url || !instagram.url[0]) {
-                await sock.sendMessage(msg.key.remoteJid, { react: { text: "👎", key: msg.key } });
-                await sock.sendMessage(msg.key.remoteJid, { text: "Houve um erro ao baixar o vídeo, tente novamente." }, { quoted: msg })
-                return;
-            }
+                    await fetch(i_url).then(async (res) => {
 
-            for (var i = 0; i < instagram.url.length; i++) {
+                        if (res.headers.get("content-type").startsWith("image")) {
+                            await sock.sendMessage(msg.key.remoteJid, { image: { url: i_url } }, { quoted: msg })
+                        } else if (res.headers.get("content-type").startsWith("video")) {
 
-                var i_url = instagram.url[i];
+                            var video_file_name = `instagram_${Math.floor(Math.random() * 999)}_${i}_${msg.key.remoteJid}.mp4`;
 
-                await fetch(i_url).then(async (res) => {
+                            await new Promise((resolve, reject) => {
+                                var dest = fs.createWriteStream(join(__dirname, "temp", video_file_name))
+                                dest.on('error', function (err) {
+                                    console.log(err);
+                                });
+                                res.body.pipe(dest);
+                                res.body.on("error", (err) => {
+                                    console.log(err);
+                                    reject(err);
+                                });
+                                dest.on("finish", function () {
+                                    resolve();
+                                });
+                            });
 
-                    if (res.headers.get("content-type").startsWith("image")) {
-                        await sock.sendMessage(msg.key.remoteJid, { image: { url: i_url } }, { quoted: msg })
-                    } else if (res.headers.get("content-type").startsWith("video")) {
+                            if (!fs.existsSync(join(__dirname, "temp", video_file_name))) {
+                                await sock.sendMessage(msg.key.remoteJid, { text: "Houve um erro ao baixar o vídeo, tente novamente." }, { quoted: msg })
+                                return;
+                            }
 
-                        var video_file_name = `instagram_${Math.floor(Math.random() * 999)}_${i}_${msg.key.remoteJid}.mp4`;
-
-                        await new Promise((resolve, reject) => {
-                            var dest = fs.createWriteStream(join(__dirname, "temp", video_file_name))
-                            dest.on('error', function (err) {
+                            await sock.sendMessage(msg.key.remoteJid, { video: { url: join(__dirname, "temp", video_file_name) } }, { quoted: msg }).catch(err => {
                                 console.log(err);
-                            });
-                            res.body.pipe(dest);
-                            res.body.on("error", (err) => {
-                                console.log(err);
-                                reject(err);
-                            });
-                            dest.on("finish", function () {
-                                resolve();
-                            });
-                        });
+                            })
 
-                        if (!fs.existsSync(join(__dirname, "temp", video_file_name))) {
-                            await sock.sendMessage(msg.key.remoteJid, { text: "Houve um erro ao baixar o vídeo, tente novamente." }, { quoted: msg })
-                            return;
+                            fs.unlink(join(__dirname, "temp", video_file_name), function (err) {
+                                if (err) return console.log(err);
+                            });
+
                         }
 
-                        await sock.sendMessage(msg.key.remoteJid, { video: { url: join(__dirname, "temp", video_file_name) } }, { quoted: msg }).catch(err => {
-                            console.log(err);
-                        })
+                    });
+                }
 
-                        fs.unlink(join(__dirname, "temp", video_file_name), function (err) {
-                            if (err) return console.log(err);
-                        });
+                await sock.sendMessage(msg.key.remoteJid, { react: { text: "👍", key: msg.key } });
 
-                    }
-
-                });
             }
-
-            await sock.sendMessage(msg.key.remoteJid, { react: { text: "👍", key: msg.key } });
-
+        } catch (err) {
+            logger.error(err);
         }
-
 
     });
 

@@ -12,53 +12,52 @@ import ffmpeg from 'fluent-ffmpeg';
 import TikTokScraper from 'tiktok-scraper';
 import ytdl from 'ytdl-core';
 import fetch from "node-fetch";
-
-console.log('\n\n');
-yo("Robozin", { color: 'rainbow' });
-console.log('\n\n');
-logger.info(`Iniciando o Robozin v${process.env.npm_package_version}`);
-
 export const __dirname = join(dirname(fileURLToPath(import.meta.url)), "../");
-ffmpeg.setFfmpegPath(join(__dirname, "src", "ffmpeg", "ffmpeg.exe"))
-const msgRetryCounterMap = {}
-const store = makeInMemoryStore({ logger });
 const commands = new Enmap();
 const command_list = new Enmap();
-const phbscraper = new PHBScraper();
 
-readdirSync(join(__dirname, "src", "commands")).forEach(async (f) => {
-    try {
-        const props = await import(`./commands/${f}`).catch(err => { console.log(err); });
-        if (f.split('.').slice(-1)[0] !== 'mjs') return;
-        logger.info(`Carregando o comando \u001b[0m\u001b[31m${props.default.info.name}\u001b[0m`);
-        if (props.default.init) props.default.init();
-        command_list.set(props.default.info.name, props.default.info);
-        props.default.info.usage.forEach(alias => commands.set(alias, props.default))
-    } catch (e) {
-        logger.info(`Impossível carregar o comando \u001b[0m\u001b[31m${f}: ${e}\u001b[0m`)
-    }
-})
+try {
+    console.log('\n\n');
+    yo("Robozin", { color: 'rainbow' });
+    console.log('\n\n');
+    logger.info(`Iniciando o Robozin v${process.env.npm_package_version}`);
 
-const startSock = async () => {
+    ffmpeg.setFfmpegPath(join(__dirname, "src", "ffmpeg", "ffmpeg.exe"))
+    const msgRetryCounterMap = {}
+    const store = makeInMemoryStore({ logger });
+    const phbscraper = new PHBScraper();
 
-    const { state, saveState } = useSingleFileAuthState('baileys_auth_info.json');
-    const { version, isLatest } = await fetchLatestBaileysVersion();
-
-    console.log(`using WA v${version.join('.')}, isLatest: ${isLatest}`);
-
-    const sock = makeWASocket({
-        version,
-        logger,
-        printQRInTerminal: true,
-        auth: state,
-        msgRetryCounterMap
-    });
-
-    store?.bind(sock.ev);
-
-    sock.ev.on('messages.upsert', async m => {
-
+    readdirSync(join(__dirname, "src", "commands")).forEach(async (f) => {
         try {
+            const props = await import(`./commands/${f}`).catch(err => { console.log(err); });
+            if (f.split('.').slice(-1)[0] !== 'mjs') return;
+            logger.info(`Carregando o comando \u001b[0m\u001b[31m${props.default.info.name}\u001b[0m`);
+            if (props.default.init) props.default.init();
+            command_list.set(props.default.info.name, props.default.info);
+            props.default.info.usage.forEach(alias => commands.set(alias, props.default))
+        } catch (e) {
+            logger.info(`Impossível carregar o comando \u001b[0m\u001b[31m${f}: ${e}\u001b[0m`)
+        }
+    })
+
+    const startSock = async () => {
+
+        const { state, saveState } = useSingleFileAuthState('baileys_auth_info.json');
+        const { version, isLatest } = await fetchLatestBaileysVersion();
+
+        console.log(`using WA v${version.join('.')}, isLatest: ${isLatest}`);
+
+        const sock = makeWASocket({
+            version,
+            logger,
+            printQRInTerminal: true,
+            auth: state,
+            msgRetryCounterMap
+        });
+
+        store?.bind(sock.ev);
+
+        sock.ev.on('messages.upsert', async m => {
 
             const msg = m.messages[0];
 
@@ -103,6 +102,7 @@ const startSock = async () => {
                     console.log(err);
                 }
             }*/
+
 
             /* Tiktok Downloader */
             else if (msgtext.startsWith("https://www.tiktok.com") || msgtext.startsWith("https://vm.tiktok.com")) {
@@ -265,30 +265,31 @@ const startSock = async () => {
                 await sock.sendMessage(msg.key.remoteJid, { react: { text: "👍", key: msg.key } });
 
             }
-        } catch (err) {
-            logger.error(err);
-        }
 
-    });
 
-    sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect } = update
-        if (connection === 'close') {
-            if (lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut) {
-                startSock()
-            } else {
-                console.log('Connection closed. You are logged out.')
+        });
+
+        sock.ev.on('connection.update', (update) => {
+            const { connection, lastDisconnect } = update
+            if (connection === 'close') {
+                if (lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut) {
+                    startSock()
+                } else {
+                    console.log('Connection closed. You are logged out.')
+                }
             }
-        }
-        console.log('connection update', update)
-    })
+            console.log('connection update', update)
+        })
 
-    sock.ev.on('creds.update', saveState)
+        sock.ev.on('creds.update', saveState)
 
-    return sock;
+        return sock;
+    }
+
+    startSock();
+} catch (err) {
+
 }
-
-startSock();
 
 export function isInt(n) {
     return Number(n) === n && n % 1 === 0;

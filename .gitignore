@@ -3,4 +3,5 @@ tokens/
 temp/
 .wwebjs_auth/
 *.class
-baileys_auth_info.json
+baileys_store_multi.json
+baileys_auth_info/

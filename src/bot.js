@@ -1,5 +1,5 @@
 import pkg_baileys from '@adiwajshing/baileys';
-const { default: makeWASocket, DisconnectReason, fetchLatestBaileysVersion, makeInMemoryStore, useSingleFileAuthState } = pkg_baileys;
+const { default: makeWASocket, DisconnectReason, fetchLatestBaileysVersion, makeInMemoryStore, useMultiFileAuthState } = pkg_baileys;
 import { logger } from './logger.js';
 import { yo } from 'yoo-hoo';
 import Enmap from 'enmap';
@@ -24,7 +24,15 @@ try {
 
     ffmpeg.setFfmpegPath(join(__dirname, "src", "ffmpeg", "ffmpeg.exe"))
     const msgRetryCounterMap = {}
+
     const store = makeInMemoryStore({ logger });
+
+    store?.readFromFile('./baileys_store_multi.json')
+
+    setInterval(() => {
+        store?.writeToFile('./baileys_store_multi.json')
+    }, 10_000)
+
     const phbscraper = new PHBScraper();
 
     readdirSync(join(__dirname, "src", "commands")).forEach(async (f) => {
@@ -42,7 +50,8 @@ try {
 
     const startSock = async () => {
 
-        const { state, saveState } = useSingleFileAuthState('baileys_auth_info.json');
+        const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info')
+
         const { version, isLatest } = await fetchLatestBaileysVersion();
 
         console.log(`using WA v${version.join('.')}, isLatest: ${isLatest}`);
@@ -52,8 +61,15 @@ try {
             logger,
             printQRInTerminal: true,
             auth: state,
-            msgRetryCounterMap
+            msgRetryCounterMap,
+            getMessage: async key => {
+                if (store) {
+                    const msg = await store.loadMessage(key.remoteJid, key.id, undefined)
+                    return msg?.message || undefined
+                }
+            },
         });
+
 
         store?.bind(sock.ev);
 
@@ -281,7 +297,9 @@ try {
             console.log('connection update', update)
         })
 
-        sock.ev.on('creds.update', saveState)
+        sock.ev.on('creds.update', async () => {
+            await saveCreds()
+        })
 
         return sock;
     }
